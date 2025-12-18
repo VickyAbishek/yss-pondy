@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
-import { Alert, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '../../../constants/Colors';
 import { supabase } from '../../../lib/supabase';
@@ -96,50 +96,74 @@ export default function AddBookScreen() {
     };
 
     const handleSave = async () => {
+        console.log('Save Pressed. Form:', form);
         // Validate
         if (!form.price) {
+            console.log('Validation Failed: No Price');
             Alert.alert('Missing Fields', 'Please fill in Price.');
             return;
-        } else if (!form.stock) {
-            Alert.alert('Missing Fields', 'Please fill in Stock.');
-            return;
         }
+        // Stock defaults to 1 if empty, so no check needed here unless you want to forbid "0" explicitly
 
         setSaving(true);
         console.log('Attempting to save book:', form);
 
         try {
-            const payload = {
-                isbn: form.isbn,
-                title: form.title,
-                author: form.author,
-                price: parseFloat(form.price) || 0,
-                stock: parseInt(form.stock) || 0,
-                language: form.language,
-                // If type is not in form state yet, default it or add to form state
-                type: 'Paperback',
-                thumbnail_url: form.thumbnail_url || null,
-            };
+            const price = parseFloat(form.price) || 0;
+            // Default to 1 if empty, or parse the value
+            const stockToAdd = form.stock ? (parseInt(form.stock) || 0) : 1;
 
-            console.log('Payload:', payload);
+            console.log(`Checking duplicates for: Title="${form.title}", Price=${price}`);
 
-            const { data, error } = await supabase
+            // 1. Check for existing book with same Title & Price
+            const { data: existingBooks, error: searchError } = await supabase
                 .from('books')
-                .insert(payload)
-                .select();
+                .select('*')
+                .eq('title', form.title)
+                .eq('price', price)
+                .limit(1);
 
-            console.log('Supabase Response:', { data, error });
+            if (searchError) throw searchError;
 
-            if (error) {
-                console.error('Supabase Error:', error);
-                throw error;
+            if (existingBooks && existingBooks.length > 0) {
+                // UPDATE existing stock
+                const existingBook = existingBooks[0];
+                const newStock = existingBook.stock + stockToAdd;
+
+                console.log(`Merging with existing book ID: ${existingBook.id}. Old Stock: ${existingBook.stock}, New Stock: ${newStock}`);
+
+                const { error: updateError } = await supabase
+                    .from('books')
+                    .update({ stock: newStock })
+                    .eq('id', existingBook.id);
+
+                if (updateError) throw updateError;
+
+                Alert.alert('Stock Updated', `Merged with existing entry. New Stock: ${newStock}`);
+            } else {
+                // INSERT new book
+                const payload = {
+                    isbn: form.isbn,
+                    title: form.title,
+                    author: form.author,
+                    price: price,
+                    stock: stockToAdd,
+                    language: form.language,
+                    type: 'Paperback',
+                    thumbnail_url: form.thumbnail_url || null,
+                };
+
+                console.log('Payload:', payload);
+
+                const { data, error } = await supabase
+                    .from('books')
+                    .insert(payload)
+                    .select();
+
+                if (error) throw error;
+                Alert.alert('Success', 'Book added successfully!');
             }
 
-            if (!data || data.length === 0) {
-                throw new Error('No data returned. Check RLS policies.');
-            }
-
-            Alert.alert('Success', 'Book added successfully!');
             router.back();
         } catch (error: any) {
             console.error('Save Failure:', error);
@@ -201,7 +225,7 @@ export default function AddBookScreen() {
             <View style={styles.cameraContainer}>
                 {Platform.OS === 'web' ? (
                     <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-                        <View nativeID="reader" style={{ width: 500, maxWidth: '100%', height: 500, overflow: 'hidden' }} />
+                        <View nativeID="reader" style={{ width: 500, maxWidth: '100%', height: 750, overflow: 'hidden' }} />
                         <Text style={{ color: 'white', marginTop: 20 }}>Camera Active (High Res)</Text>
                     </View>
                 ) : (
@@ -253,7 +277,7 @@ export default function AddBookScreen() {
                     <Ionicons name="arrow-back" size={24} color={Colors.yss.text} />
                 </TouchableOpacity>
                 <Text style={styles.headerTitle}>Add New Book</Text>
-                <TouchableOpacity onPress={handleSave} disabled={saving}>
+                <TouchableOpacity onPress={handleSave} disabled={saving} style={styles.saveButton}>
                     <Text style={[styles.saveText, { opacity: saving ? 0.5 : 1 }]}>
                         {saving ? 'Saving...' : 'Save'}
                     </Text>
@@ -334,13 +358,23 @@ export default function AddBookScreen() {
                             style={styles.input}
                             value={form.stock}
                             onChangeText={t => setForm(prev => ({ ...prev, stock: t }))}
-                            placeholder="0"
+                            placeholder="1"
                             keyboardType="numeric"
                         />
                     </View>
                 </View>
 
             </ScrollView>
+
+            {/* Loading Overlay */}
+            {loadingBook && (
+                <View style={[styles.loadingOverlay, StyleSheet.absoluteFill]}>
+                    <View style={styles.loadingBox}>
+                        <ActivityIndicator size="large" color={Colors.yss.orange} />
+                        <Text style={styles.loadingText}>Fetching Book Details...</Text>
+                    </View>
+                </View>
+            )}
         </SafeAreaView>
     );
 }
@@ -358,6 +392,7 @@ const styles = StyleSheet.create({
         paddingVertical: 15,
         borderBottomWidth: 1,
         borderBottomColor: 'rgba(0,0,0,0.05)',
+        zIndex: 1,
     },
     backButton: {
         padding: 5,
@@ -367,6 +402,9 @@ const styles = StyleSheet.create({
         fontFamily: 'serif',
         fontWeight: 'bold',
         color: Colors.yss.text,
+    },
+    saveButton: {
+        padding: 10,
     },
     saveText: {
         color: Colors.yss.orange,
@@ -443,5 +481,28 @@ const styles = StyleSheet.create({
         borderColor: Colors.yss.orange,
         borderRadius: 20,
         backgroundColor: 'transparent',
+    },
+    loadingOverlay: {
+        backgroundColor: 'rgba(0,0,0,0.5)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        zIndex: 1000,
+    },
+    loadingBox: {
+        backgroundColor: 'white',
+        padding: 25,
+        borderRadius: 15,
+        alignItems: 'center',
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.25,
+        shadowRadius: 3.84,
+        elevation: 5,
+    },
+    loadingText: {
+        marginTop: 15,
+        fontSize: 16,
+        color: Colors.yss.text,
+        fontWeight: '600',
     },
 });
