@@ -1,10 +1,10 @@
+import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View, } from 'react-native';
+import React from 'react';
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '../../constants/Colors';
 import { useAuth } from '../../lib/auth';
-// Icons would normally come from @expo/vector-icons, assuming installed (standard in expo)
-import { Ionicons } from '@expo/vector-icons';
 
 export default function Dashboard() {
     const { user } = useAuth();
@@ -12,31 +12,31 @@ export default function Dashboard() {
 
     // Mock Data
     const stats = [
-        { label: 'Total Sales', value: '₹15,420', icon: 'trending-up' },
-        { label: 'Books in Stock', value: '4,500', icon: 'book' },
+        { label: 'Books in Stock', value: '1,240', icon: 'book' },
+        { label: 'Today Sales', value: '12', icon: 'basket' }, // "Revenue" removed, using count. Icon changed to basket/cart.
     ];
 
     const actions = [
-        { label: 'New Sale', icon: 'cart', route: '/(auth)/sales' },
+        { label: 'New Sale', icon: 'add-circle', route: '/(auth)/sales' }, // Explicit Sales button pointing to + action
         { label: 'Inventory', icon: 'list', route: '/(auth)/inventory' },
         { label: 'Reports', icon: 'bar-chart', route: '/(auth)/reports' },
-        { label: 'Users', icon: 'people', route: '/(auth)/admin/users' }, // Admin only?
+        { label: 'Users', icon: 'people', route: '/(auth)/admin/users' },
     ];
 
     return (
         <SafeAreaView style={styles.container}>
-            <ScrollView contentContainerStyle={styles.content}>
-
-                {/* Header */}
-                <View style={styles.header}>
-                    <View>
-                        <Text style={styles.greeting}>Namaste,</Text>
-                        <Text style={styles.userName}>{user?.email?.split('@')[0] || 'User'}.</Text>
-                    </View>
-                    <TouchableOpacity style={styles.profileButton}>
-                        <Ionicons name="person-circle-outline" size={40} color={Colors.yss.orange} />
-                    </TouchableOpacity>
+            {/* Header - Kept as is per request, just text change */}
+            <View style={styles.header}>
+                <View>
+                    <Text style={styles.greeting}>Jaiguru,</Text>
+                    <Text style={styles.userName}>{user?.email?.split('@')[0] || 'User'}.</Text>
                 </View>
+                <TouchableOpacity style={styles.profileButton}>
+                    <Ionicons name="person-circle-outline" size={40} color={Colors.yss.orange} />
+                </TouchableOpacity>
+            </View>
+
+            <ScrollView contentContainerStyle={styles.content}>
 
                 {/* Stats Row */}
                 <View style={styles.statsRow}>
@@ -52,7 +52,7 @@ export default function Dashboard() {
                 </View>
 
                 {/* Actions Grid */}
-                <Text style={styles.sectionTitle}>Actions</Text>
+                <Text style={styles.sectionTitle}>Quick Actions</Text>
                 <View style={styles.grid}>
                     {actions.map((action, index) => (
                         <TouchableOpacity
@@ -80,12 +80,15 @@ const styles = StyleSheet.create({
     },
     content: {
         padding: 20,
+        paddingBottom: 100, // Space for bottom bar
     },
     header: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        marginBottom: 30,
+        paddingHorizontal: 20,
+        paddingTop: 10,
+        marginBottom: 20,
     },
     greeting: {
         fontSize: 24,
@@ -108,13 +111,14 @@ const styles = StyleSheet.create({
     },
     statCard: {
         flex: 1,
-        backgroundColor: 'rgba(255,255,255, 0.6)', // Glassmorphismish
+        backgroundColor: 'rgba(255,255,255, 0.6)',
         padding: 20,
         borderRadius: 20,
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.05,
         shadowRadius: 5,
+        elevation: 2,
     },
     statHeader: {
         flexDirection: 'row',
@@ -123,12 +127,12 @@ const styles = StyleSheet.create({
     },
     statLabel: {
         color: Colors.yss.text,
-        opacity: 0.7,
-        fontSize: 12,
+        opacity: 0.8,
+        fontSize: 13,
         fontWeight: '600',
     },
     statValue: {
-        fontSize: 24,
+        fontSize: 28,
         fontWeight: 'bold',
         color: Colors.yss.text,
     },
@@ -142,34 +146,40 @@ const styles = StyleSheet.create({
     grid: {
         flexDirection: 'row',
         flexWrap: 'wrap',
+        justifyContent: 'space-between',
         gap: 15,
     },
     actionCard: {
-        width: '47%', // roughly half minus gap
-        aspectRatio: 1,
-        backgroundColor: 'rgba(255,255,255, 0.4)',
+        width: '47.5%', // Use percentage for responsiveness
+        aspectRatio: 1.1,
+        backgroundColor: 'rgba(255,255,255, 0.5)',
         borderRadius: 25,
         justifyContent: 'center',
         alignItems: 'center',
         borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.5)',
+        borderColor: 'rgba(255,255,255,0.6)',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.05,
+        shadowRadius: 2,
     },
     iconCircle: {
-        width: 60,
-        height: 60,
-        borderRadius: 30,
-        backgroundColor: Colors.yss.orange, // Primary button color
+        width: 55,
+        height: 55,
+        borderRadius: 27.5,
+        backgroundColor: Colors.yss.orange,
         justifyContent: 'center',
         alignItems: 'center',
-        marginBottom: 10,
+        marginBottom: 12,
         shadowColor: Colors.yss.orange,
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.3,
         shadowRadius: 8,
+        elevation: 4,
     },
     actionLabel: {
         fontSize: 16,
         fontWeight: '600',
         color: Colors.yss.text,
-    }
+    },
 });

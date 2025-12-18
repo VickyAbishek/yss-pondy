@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
-import { Alert, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Alert, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '../../../constants/Colors';
 import { supabase } from '../../../lib/supabase';
@@ -24,6 +24,7 @@ export default function AddBookScreen() {
 
     // Camera State
     const [scanning, setScanning] = useState(false);
+    const [torch, setTorch] = useState(false);
     const [permission, requestPermission] = useCameraPermissions();
 
     const fetchBookDetails = async (isbn: string) => {
@@ -59,19 +60,35 @@ export default function AddBookScreen() {
         }
     };
 
+    // Web Scanner Ref
+    const scannerRef = React.useRef<any>(null);
+
     const handleScan = async () => {
-        if (!permission?.granted) {
-            const { granted } = await requestPermission();
-            if (!granted) {
-                Alert.alert('Permission needed', 'Camera permission is required to scan QR codes.');
-                return;
+        console.log('Scanner button clicked');
+
+        if (Platform.OS !== 'web') {
+            if (!permission?.granted) {
+                console.log('Requesting permission...');
+                const { granted } = await requestPermission();
+                if (!granted) {
+                    Alert.alert('Permission needed', 'Camera permission is required to scan QR codes.');
+                    return;
+                }
             }
         }
         setScanning(true);
     };
 
     const onBarcodeScanned = ({ data }: { data: string }) => {
+        console.log('Barcode scanned:', data);
         setScanning(false);
+        setTorch(false);
+        // Stop web scanner if running
+        if (scannerRef.current) {
+            scannerRef.current.stop().catch(console.error);
+            scannerRef.current = null;
+        }
+
         if (data !== form.isbn) {
             setForm(prev => ({ ...prev, isbn: data }));
             fetchBookDetails(data);
@@ -132,23 +149,98 @@ export default function AddBookScreen() {
         }
     };
 
+    // Web Scanner Effect
+    React.useEffect(() => {
+        if (scanning && Platform.OS === 'web') {
+            // Dynamic import to avoid native bundler issues
+            const { Html5Qrcode } = require('html5-qrcode');
+
+            const startScanner = async () => {
+                const html5QrCode = new Html5Qrcode("reader");
+                scannerRef.current = html5QrCode;
+
+                try {
+                    await html5QrCode.start(
+                        { facingMode: "environment" },
+                        {
+                            fps: 10,
+                            qrbox: { width: 250, height: 350 },
+                            videoConstraints: {
+                                facingMode: "environment",
+                                width: { min: 640, ideal: 1920 },
+                                height: { min: 480, ideal: 1080 },
+                            }
+                        },
+                        (decodedText: string) => {
+                            onBarcodeScanned({ data: decodedText });
+                        },
+                        (errorMessage: string) => {
+                            // ignore
+                        }
+                    );
+                } catch (err) {
+                    console.error("Error starting web scanner", err);
+                    setScanning(false);
+                    Alert.alert("Scanner Error", "Could not start camera. Please ensure permissions are granted.");
+                }
+            };
+
+            // Small delay to ensure DOM is ready
+            setTimeout(startScanner, 100);
+
+            return () => {
+                if (scannerRef.current) {
+                    scannerRef.current.stop().catch((err: any) => console.log('Stop failed', err));
+                }
+            };
+        }
+    }, [scanning]);
+
     if (scanning) {
         return (
             <View style={styles.cameraContainer}>
-                <CameraView
-                    style={StyleSheet.absoluteFill}
-                    onBarcodeScanned={onBarcodeScanned}
-                    barcodeScannerSettings={{
-                        barcodeTypes: ["qr", "ean13"],
-                    }}
-                />
-                <TouchableOpacity style={styles.closeCamera} onPress={() => setScanning(false)}>
+                {Platform.OS === 'web' ? (
+                    <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+                        <View nativeID="reader" style={{ width: 500, maxWidth: '100%', height: 500, overflow: 'hidden' }} />
+                        <Text style={{ color: 'white', marginTop: 20 }}>Camera Active (High Res)</Text>
+                    </View>
+                ) : (
+                    <CameraView
+                        style={StyleSheet.absoluteFill}
+                        facing="back"
+                        enableTorch={torch}
+                        onBarcodeScanned={onBarcodeScanned}
+                        barcodeScannerSettings={{
+                            barcodeTypes: ["qr", "ean13"],
+                        }}
+                    />
+                )}
+
+                <TouchableOpacity style={styles.closeCamera} onPress={() => {
+                    setScanning(false);
+                    setTorch(false);
+                    if (scannerRef.current) {
+                        scannerRef.current.stop().catch(console.error);
+                    }
+                }}>
                     <Ionicons name="close-circle" size={50} color="white" />
                 </TouchableOpacity>
-                <View style={styles.scanOverlay}>
-                    <Text style={styles.scanText}>Align code within frame</Text>
-                    <View style={styles.scanFrame} />
-                </View>
+
+                {Platform.OS !== 'web' && (
+                    <>
+                        <TouchableOpacity
+                            style={[styles.closeCamera, { top: undefined, bottom: 40, right: 20 }]}
+                            onPress={() => setTorch(!torch)}
+                        >
+                            <Ionicons name={torch ? "flash" : "flash-off"} size={30} color="white" />
+                        </TouchableOpacity>
+
+                        <View style={styles.scanOverlay}>
+                            <Text style={styles.scanText}>Align code within frame</Text>
+                            <View style={styles.scanFrame} />
+                        </View>
+                    </>
+                )}
             </View>
         )
     }
@@ -181,7 +273,7 @@ export default function AddBookScreen() {
                             keyboardType="numeric"
                         />
                         <TouchableOpacity
-                            style={[styles.scanButton, { backgroundColor: Colors.yss.secondaryOrange, marginRight: 5 }]}
+                            style={[styles.scanButton, { backgroundColor: Colors.yss.secondaryOrange }]}
                             onPress={() => fetchBookDetails(form.isbn)}
                             disabled={loadingBook}
                         >
@@ -303,10 +395,13 @@ const styles = StyleSheet.create({
         color: Colors.yss.text,
         borderWidth: 1,
         borderColor: 'rgba(0,0,0,0.1)',
+        minWidth: 0, // Fix for flex child overflow on web
     },
     row: {
         flexDirection: 'row',
         alignItems: 'center',
+        width: '100%',
+        gap: 10,
     },
     scanButton: {
         backgroundColor: Colors.yss.orange,
@@ -315,7 +410,8 @@ const styles = StyleSheet.create({
         borderRadius: 12,
         justifyContent: 'center',
         alignItems: 'center',
-        marginLeft: 10,
+        zIndex: 10, // Ensure clickable
+        cursor: 'pointer', // Web helper
     },
     cameraContainer: {
         flex: 1,

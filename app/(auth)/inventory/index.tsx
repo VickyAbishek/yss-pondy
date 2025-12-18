@@ -116,13 +116,7 @@ export default function InventoryScreen() {
             />
 
             {/* FAB to Add Book */}
-            <TouchableOpacity
-                style={styles.fab}
-                onPress={() => router.push('/(auth)/inventory/add')}
-            >
-                <Ionicons name="add" size={30} color={Colors.yss.white} />
-                <Text style={styles.fabText}>Add New</Text>
-            </TouchableOpacity>
+            {/* FAB Removed - using global BottomNavigation */}
 
         </SafeAreaView>
     );
@@ -242,28 +236,6 @@ const styles = StyleSheet.create({
         fontSize: 18,
         fontWeight: 'bold',
         color: Colors.yss.orange,
-    },
-    fab: {
-        position: 'absolute',
-        bottom: 30,
-        alignSelf: 'center',
-        backgroundColor: Colors.yss.orange,
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingVertical: 12,
-        paddingHorizontal: 24,
-        borderRadius: 30,
-        shadowColor: Colors.yss.orange,
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.3,
-        shadowRadius: 8,
-        elevation: 5,
-    },
-    fabText: {
-        color: Colors.yss.white,
-        fontWeight: 'bold',
-        fontSize: 16,
-        marginLeft: 8,
     },
     emptyContainer: {
         alignItems: 'center',
