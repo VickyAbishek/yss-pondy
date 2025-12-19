@@ -1,6 +1,6 @@
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
-import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Colors } from '../constants/Colors';
 import { useAuth } from '../lib/auth';
 import { supabase } from '../lib/supabase';
@@ -37,8 +37,8 @@ export default function LoginScreen() {
                 },
             });
             if (error) throw error;
-        } catch (error) {
-            alert('Error logging in: ' + error.message);
+        } catch (error: any) {
+            alert('Error logging in: ' + (error?.message || 'Unknown error'));
         } finally {
             setAuthLoading(false);
         }
@@ -56,10 +56,11 @@ export default function LoginScreen() {
         <View style={styles.container}>
             <View style={styles.content}>
                 <View style={styles.logoContainer}>
-                    {/* Placeholder for Logo */}
-                    <View style={styles.logoCircle}>
-                        <Text style={styles.logoText}>YSS</Text>
-                    </View>
+                    <Image
+                        source={require('../assets/images/py.png')}
+                        style={styles.logoImage}
+                        resizeMode="contain"
+                    />
                     <Text style={styles.title}>YSS Books Inventory</Text>
                     <Text style={styles.subtitle}>Welcome Back.</Text>
                 </View>
@@ -101,22 +102,15 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         marginBottom: 50,
     },
-    logoCircle: {
-        width: 80,
-        height: 80,
-        borderRadius: 40,
-        borderWidth: 2,
-        borderColor: Colors.yss.orange,
-        justifyContent: 'center',
-        alignItems: 'center',
+    logoImage: {
+        width: 200,
+        height: 200,
         marginBottom: 20,
-        backgroundColor: Colors.yss.white,
-    },
-    logoText: {
-        color: Colors.yss.orange,
-        fontSize: 24,
-        fontWeight: 'bold',
-        fontFamily: 'serif',
+        borderRadius: 75,
+        shadowColor: '#fff',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.25,
+        shadowRadius: 8,
     },
     title: {
         fontSize: 24,

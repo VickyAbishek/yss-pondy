@@ -31,14 +31,15 @@ export default function AddBookScreen() {
         if (!isbn) return;
         setLoadingBook(true);
         try {
+            // 1. First try Google Books API
             const response = await fetch(`https://www.googleapis.com/books/v1/volumes?q=isbn:${isbn}`);
             const data = await response.json();
-            console.log('Rewqq: ', `https://www.googleapis.com/books/v1/volumes?q=isbn:${isbn}`);
-            console.log('Book Data:', response);
+            console.log('Google Books API:', `https://www.googleapis.com/books/v1/volumes?q=isbn:${isbn}`);
+
             if (data.totalItems > 0) {
                 const book = data.items[0].volumeInfo;
                 const thumbnail = book.imageLinks?.thumbnail || book.imageLinks?.smallThumbnail || '';
-                console.log('Thumbnail Found:', thumbnail);
+                console.log('Book found in Google Books:', book.title);
 
                 setForm(prev => ({
                     ...prev,
@@ -48,13 +49,37 @@ export default function AddBookScreen() {
                     language: book.language || 'en',
                     thumbnail_url: thumbnail,
                 }));
-                Alert.alert('Book Found', `Autofilled details for: ${book.title}`);
             } else {
-                Alert.alert('Not Found', 'Could not find book details for this ISBN.');
+                // 2. Fallback: Check existing inventory
+                const { data: existingBook, error } = await supabase
+                    .from('books')
+                    .select('*')
+                    .eq('isbn', isbn)
+                    .limit(1)
+                    .single();
+
+                if (existingBook && !error) {
+                    console.log('Book found in inventory:', existingBook.title);
+                    setForm(prev => ({
+                        ...prev,
+                        isbn,
+                        title: existingBook.title || '',
+                        author: existingBook.author || '',
+                        language: existingBook.language || 'en',
+                        thumbnail_url: existingBook.thumbnail_url || '',
+                        // Leave price and stock empty for user to enter
+                        price: '',
+                        stock: '',
+                    }));
+                } else {
+                    // Not found anywhere
+                    setForm(prev => ({ ...prev, isbn }));
+                }
             }
         } catch (error) {
-            Alert.alert('Error', 'Failed to fetch book details.');
+            window.alert('Failed to fetch book details. Please enter manually.');
             console.error(error);
+            setForm(prev => ({ ...prev, isbn }));
         } finally {
             setLoadingBook(false);
         }
