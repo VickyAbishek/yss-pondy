@@ -1,23 +1,57 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '../../constants/Colors';
 import { useAuth } from '../../lib/auth';
+import { supabase } from '../../lib/supabase';
 
 export default function Dashboard() {
     const { user } = useAuth();
     const router = useRouter();
 
-    // Mock Data
+    // Stats from database
+    const [booksCount, setBooksCount] = useState<number>(0);
+    const [todaySalesCount, setTodaySalesCount] = useState<number>(0);
+
+    // Fetch stats on mount
+    useEffect(() => {
+        const fetchStats = async () => {
+            // Get total books count (sum of all stock)
+            const { data: booksData, error: booksError } = await supabase
+                .from('books')
+                .select('stock');
+
+            if (booksData && !booksError) {
+                const totalStock = booksData.reduce((sum, book) => sum + (book.stock || 0), 0);
+                setBooksCount(totalStock);
+            }
+
+            // Get today's sales count
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+
+            const { count, error: salesError } = await supabase
+                .from('sales')
+                .select('*', { count: 'exact', head: true })
+                .gte('created_at', today.toISOString());
+
+            if (count !== null && !salesError) {
+                setTodaySalesCount(count);
+            }
+        };
+
+        fetchStats();
+    }, []);
+
     const stats = [
-        { label: 'Books in Stock', value: '1,240', icon: 'book' },
-        { label: 'Today Sales', value: '12', icon: 'basket' }, // "Revenue" removed, using count. Icon changed to basket/cart.
+        { label: 'Books in Stock', value: booksCount.toLocaleString(), icon: 'book' },
+        { label: 'Today Sales', value: todaySalesCount.toString(), icon: 'basket' },
     ];
 
     const actions = [
-        { label: 'New Sale', icon: 'add-circle', route: '/(auth)/sales' }, // Explicit Sales button pointing to + action
+        { label: 'New Sale', icon: 'add-circle', route: '/(auth)/sales' },
         { label: 'Inventory', icon: 'list', route: '/(auth)/inventory' },
         { label: 'Reports', icon: 'bar-chart', route: '/(auth)/reports' },
         { label: 'Users', icon: 'people', route: '/(auth)/admin/users' },

@@ -50,6 +50,12 @@ export default function SalesScreen() {
     // Offer State
     const [activeOffer, setActiveOffer] = useState<Offer | null>(null);
 
+    // Search Modal State
+    const [searchVisible, setSearchVisible] = useState(false);
+    const [searchQuery, setSearchQuery] = useState('');
+    const [searchResults, setSearchResults] = useState<any[]>([]);
+    const [searchLoading, setSearchLoading] = useState(false);
+
     // Web Scanner Ref
     const scannerRef = useRef<any>(null);
     const lastScannedCode = useRef<string | null>(null);
@@ -255,6 +261,25 @@ export default function SalesScreen() {
                 return false;
             }
 
+            // 3. Reduce stock for each book sold
+            for (const item of cart) {
+                // Get current stock
+                const { data: bookData, error: fetchError } = await supabase
+                    .from('books')
+                    .select('stock')
+                    .eq('id', item.book_id)
+                    .single();
+
+                if (bookData && !fetchError) {
+                    const newStock = (bookData.stock || 0) - item.quantity;
+
+                    await supabase
+                        .from('books')
+                        .update({ stock: newStock })
+                        .eq('id', item.book_id);
+                }
+            }
+
             return true;
         } catch (error) {
             console.error('Error saving sale:', error);
@@ -348,6 +373,56 @@ export default function SalesScreen() {
         });
     };
 
+    // Search books in inventory
+    const searchBooks = async (query: string) => {
+        if (!query.trim()) {
+            setSearchResults([]);
+            return;
+        }
+
+        setSearchLoading(true);
+        try {
+            const { data, error } = await supabase
+                .from('books')
+                .select('*')
+                .or(`title.ilike.%${query}%,author.ilike.%${query}%,isbn.ilike.%${query}%`)
+                .limit(20);
+
+            if (data && !error) {
+                setSearchResults(data);
+            }
+        } catch (error) {
+            console.error('Search error:', error);
+        } finally {
+            setSearchLoading(false);
+        }
+    };
+
+    // Add book from search results to cart
+    const addBookToCart = (book: any) => {
+        setCart(prevCart => {
+            const existingIndex = prevCart.findIndex(item => item.book_id === book.id);
+            if (existingIndex >= 0) {
+                // Increment quantity
+                const newCart = [...prevCart];
+                newCart[existingIndex].quantity += 1;
+                return newCart;
+            } else {
+                // Add new item
+                return [...prevCart, {
+                    book_id: book.id,
+                    isbn: book.isbn || '',
+                    title: book.title,
+                    price: book.price,
+                    quantity: 1
+                }];
+            }
+        });
+        // Close search modal after adding
+        setSearchVisible(false);
+        setSearchQuery('');
+        setSearchResults([]);
+    };
 
     // Scanner View
     if (scanning) {
@@ -475,7 +550,15 @@ export default function SalesScreen() {
                         }
                     }}>
                         <Ionicons name="scan" size={24} color="white" />
-                        <Text style={styles.scanButtonText}>Scan Items</Text>
+                        <Text style={styles.scanButtonText}>Scan</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                        style={styles.searchButton}
+                        onPress={() => setSearchVisible(true)}
+                    >
+                        <Ionicons name="search" size={24} color="white" />
+                        <Text style={styles.scanButtonText}>Search</Text>
                     </TouchableOpacity>
 
                     <TouchableOpacity
@@ -546,6 +629,70 @@ export default function SalesScreen() {
                         >
                             <Text style={styles.cancelText}>Cancel</Text>
                         </TouchableOpacity>
+                    </View>
+                </View>
+            </Modal>
+
+            {/* Search Modal */}
+            <Modal visible={searchVisible} animationType="slide" transparent>
+                <View style={styles.modalOverlay}>
+                    <View style={[styles.modalContent, { maxHeight: '80%' }]}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 15 }}>
+                            <Text style={[styles.modalTitle, { flex: 1, marginBottom: 0 }]}>Search Books</Text>
+                            <TouchableOpacity onPress={() => {
+                                setSearchVisible(false);
+                                setSearchQuery('');
+                                setSearchResults([]);
+                            }}>
+                                <Ionicons name="close-circle" size={28} color={Colors.yss.text} />
+                            </TouchableOpacity>
+                        </View>
+
+                        <View style={{ flexDirection: 'row', gap: 10, marginBottom: 15 }}>
+                            <TextInput
+                                style={[styles.input, { flex: 1, marginBottom: 0 }]}
+                                placeholder="Search by title, author, or ISBN..."
+                                value={searchQuery}
+                                onChangeText={(text) => {
+                                    setSearchQuery(text);
+                                    searchBooks(text);
+                                }}
+                                autoFocus
+                            />
+                        </View>
+
+                        {searchLoading && (
+                            <ActivityIndicator size="small" color={Colors.yss.orange} style={{ marginVertical: 20 }} />
+                        )}
+
+                        <FlatList
+                            data={searchResults}
+                            keyExtractor={(item) => item.id}
+                            style={{ maxHeight: 400 }}
+                            ListEmptyComponent={
+                                !searchLoading && searchQuery ? (
+                                    <Text style={{ textAlign: 'center', color: '#666', marginTop: 30 }}>
+                                        No books found
+                                    </Text>
+                                ) : null
+                            }
+                            renderItem={({ item }) => (
+                                <TouchableOpacity
+                                    style={styles.searchResultItem}
+                                    onPress={() => addBookToCart(item)}
+                                >
+                                    <View style={{ flex: 1 }}>
+                                        <Text style={styles.searchResultTitle}>{item.title}</Text>
+                                        <Text style={styles.searchResultSubtitle}>
+                                            {item.author || 'Unknown Author'} • ₹{item.price} • Stock: {item.stock}
+                                        </Text>
+                                    </View>
+                                    <View style={styles.addButton}>
+                                        <Ionicons name="add" size={20} color="white" />
+                                    </View>
+                                </TouchableOpacity>
+                            )}
+                        />
                     </View>
                 </View>
             </Modal>
@@ -694,6 +841,43 @@ const styles = StyleSheet.create({
         color: 'white',
         fontWeight: 'bold',
         fontSize: 16,
+    },
+    searchButton: {
+        flex: 1,
+        backgroundColor: Colors.yss.secondaryOrange || '#F9A825',
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 15,
+        borderRadius: 12,
+        gap: 8,
+    },
+    searchResultItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#f9f9f9',
+        padding: 12,
+        borderRadius: 10,
+        marginBottom: 8,
+    },
+    searchResultTitle: {
+        fontSize: 15,
+        fontWeight: '600',
+        color: Colors.yss.text,
+    },
+    searchResultSubtitle: {
+        fontSize: 12,
+        color: '#666',
+        marginTop: 2,
+    },
+    addButton: {
+        width: 36,
+        height: 36,
+        borderRadius: 18,
+        backgroundColor: Colors.yss.orange,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginLeft: 10,
     },
     checkoutButton: {
         flex: 1,
