@@ -138,6 +138,232 @@ export default function ReportsScreen() {
         }
     };
 
+    const generateAllSalesReport = async () => {
+        setGenerating('allsales');
+        try {
+            // Fetch ALL sales with items (no date filter)
+            const { data: sales, error } = await supabase
+                .from('sales')
+                .select(`
+                    id,
+                    total_amount,
+                    discount_applied,
+                    created_at,
+                    sale_items (
+                        quantity,
+                        price_at_sale,
+                        books (title, isbn)
+                    )
+                `)
+                .order('created_at', { ascending: false });
+
+            if (error) throw error;
+
+            // Calculate totals
+            const totalSales = sales?.length || 0;
+            const totalRevenue = sales?.reduce((sum, sale) => sum + (sale.total_amount || 0), 0) || 0;
+            const totalDiscount = sales?.reduce((sum, sale) => sum + (sale.discount_applied || 0), 0) || 0;
+
+            // Generate HTML table
+            let salesRows = '';
+            sales?.forEach((sale, index) => {
+                const items = sale.sale_items?.map((item: any) =>
+                    `${item.books?.title || 'Unknown'} x${item.quantity}`
+                ).join(', ') || 'No items';
+
+                const saleDate = new Date(sale.created_at);
+                const dateStr = saleDate.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+                const timeStr = saleDate.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+
+                salesRows += `
+                    <tr>
+                        <td>${index + 1}</td>
+                        <td>${dateStr}<br/><small style="color:#666;">${timeStr}</small></td>
+                        <td style="max-width: 200px;">${items}</td>
+                        <td>₹${(sale.discount_applied || 0).toFixed(2)}</td>
+                        <td><strong>₹${(sale.total_amount || 0).toFixed(2)}</strong></td>
+                    </tr>
+                `;
+            });
+
+            if (!salesRows) {
+                salesRows = `<tr><td colspan="5" style="text-align: center; padding: 20px;">No sales recorded</td></tr>`;
+            }
+
+            const html = `
+                <html>
+                <head>
+                    <style>
+                        body { font-family: Arial, sans-serif; padding: 20px; color: #333; }
+                        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+                        th, td { border: 1px solid #ddd; padding: 10px; text-align: left; font-size: 12px; }
+                        th { background-color: #9C27B0; color: white; }
+                        tr:nth-child(even) { background-color: #f9f9f9; }
+                        .summary { background: #f5f5f5; padding: 15px; border-radius: 8px; margin-bottom: 20px; }
+                        .summary-row { display: flex; justify-content: space-between; margin: 5px 0; }
+                    </style>
+                </head>
+                <body>
+                    ${generatePDFHeader("All Sales Report")}
+                    
+                    <div class="summary">
+                        <div class="summary-row"><span>Total Transactions:</span><strong>${totalSales}</strong></div>
+                        <div class="summary-row"><span>Total Discounts:</span><strong>₹${totalDiscount.toFixed(2)}</strong></div>
+                        <div class="summary-row"><span>Total Revenue:</span><strong style="color: #9C27B0;">₹${totalRevenue.toFixed(2)}</strong></div>
+                    </div>
+
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>Date & Time</th>
+                                <th>Items</th>
+                                <th>Discount</th>
+                                <th>Total</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${salesRows}
+                        </tbody>
+                    </table>
+                </body>
+                </html>
+            `;
+
+            await printOrSharePDF(html, 'All_Sales_Report');
+        } catch (error: any) {
+            console.error('Error generating all sales report:', error);
+            window.alert('Failed to generate report: ' + (error.message || 'Unknown error'));
+        } finally {
+            setGenerating(null);
+        }
+    };
+
+    const generateItemSalesReport = async () => {
+        setGenerating('itemsales');
+        try {
+            // Fetch all sale items grouped by book with total quantities
+            const { data: saleItems, error } = await supabase
+                .from('sale_items')
+                .select(`
+                    quantity,
+                    price_at_sale,
+                    books (id, title, author, isbn, price)
+                `);
+
+            if (error) throw error;
+
+            // Aggregate quantities per book
+            const bookSalesMap = new Map<string, {
+                title: string;
+                author: string;
+                isbn: string;
+                currentPrice: number;
+                totalQuantity: number;
+                totalRevenue: number;
+            }>();
+
+            saleItems?.forEach((item: any) => {
+                if (!item.books) return;
+
+                const bookId = item.books.id;
+                const existing = bookSalesMap.get(bookId);
+
+                if (existing) {
+                    existing.totalQuantity += item.quantity;
+                    existing.totalRevenue += item.quantity * item.price_at_sale;
+                } else {
+                    bookSalesMap.set(bookId, {
+                        title: item.books.title || 'Unknown',
+                        author: item.books.author || '-',
+                        isbn: item.books.isbn || '-',
+                        currentPrice: item.books.price || 0,
+                        totalQuantity: item.quantity,
+                        totalRevenue: item.quantity * item.price_at_sale,
+                    });
+                }
+            });
+
+            // Convert to array and sort by quantity sold (descending)
+            const bookSales = Array.from(bookSalesMap.values())
+                .sort((a, b) => b.totalQuantity - a.totalQuantity);
+
+            // Calculate totals
+            const totalItemsSold = bookSales.reduce((sum, book) => sum + book.totalQuantity, 0);
+            const totalRevenue = bookSales.reduce((sum, book) => sum + book.totalRevenue, 0);
+            const uniqueBooksSold = bookSales.length;
+
+            // Generate HTML table
+            let bookRows = '';
+            bookSales.forEach((book, index) => {
+                bookRows += `
+                    <tr>
+                        <td>${index + 1}</td>
+                        <td>${book.isbn}</td>
+                        <td>${book.title}</td>
+                        <td>${book.author}</td>
+                        <td>₹${book.currentPrice.toFixed(2)}</td>
+                        <td style="text-align: center;"><strong>${book.totalQuantity}</strong></td>
+                        <td>₹${book.totalRevenue.toFixed(2)}</td>
+                    </tr>
+                `;
+            });
+
+            if (!bookRows) {
+                bookRows = `<tr><td colspan="7" style="text-align: center; padding: 20px;">No items sold yet</td></tr>`;
+            }
+
+            const html = `
+                <html>
+                <head>
+                    <style>
+                        body { font-family: Arial, sans-serif; padding: 20px; color: #333; }
+                        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+                        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; font-size: 11px; }
+                        th { background-color: #FF9800; color: white; }
+                        tr:nth-child(even) { background-color: #f9f9f9; }
+                        .summary { background: #f5f5f5; padding: 15px; border-radius: 8px; margin-bottom: 20px; }
+                        .summary-row { display: flex; justify-content: space-between; margin: 5px 0; }
+                    </style>
+                </head>
+                <body>
+                    ${generatePDFHeader("Item Sales Report")}
+                    
+                    <div class="summary">
+                        <div class="summary-row"><span>Unique Books Sold:</span><strong>${uniqueBooksSold}</strong></div>
+                        <div class="summary-row"><span>Total Items Sold:</span><strong>${totalItemsSold}</strong></div>
+                        <div class="summary-row"><span>Total Revenue:</span><strong style="color: #FF9800;">₹${totalRevenue.toFixed(2)}</strong></div>
+                    </div>
+
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>ISBN</th>
+                                <th>Title</th>
+                                <th>Author</th>
+                                <th>Current Price</th>
+                                <th>Qty Sold</th>
+                                <th>Revenue</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${bookRows}
+                        </tbody>
+                    </table>
+                </body>
+                </html>
+            `;
+
+            await printOrSharePDF(html, 'Item_Sales_Report');
+        } catch (error: any) {
+            console.error('Error generating item sales report:', error);
+            window.alert('Failed to generate report: ' + (error.message || 'Unknown error'));
+        } finally {
+            setGenerating(null);
+        }
+    };
+
     const generateInventoryReport = async () => {
         setGenerating('inventory');
         try {
@@ -261,6 +487,22 @@ export default function ReportsScreen() {
             icon: 'receipt-outline',
             color: '#4CAF50',
             onPress: generateTodaySalesReport,
+        },
+        {
+            id: 'allsales',
+            title: 'All Sales Report',
+            description: 'Complete sales history across all dates',
+            icon: 'calendar-outline',
+            color: '#9C27B0',
+            onPress: generateAllSalesReport,
+        },
+        {
+            id: 'itemsales',
+            title: 'Item Sales Report',
+            description: 'How many times each book was sold (sorted by popularity)',
+            icon: 'stats-chart-outline',
+            color: '#FF9800',
+            onPress: generateItemSalesReport,
         },
         {
             id: 'inventory',
