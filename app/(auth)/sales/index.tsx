@@ -45,6 +45,8 @@ export default function SalesScreen() {
     // Checkout State
     const [checkoutVisible, setCheckoutVisible] = useState(false);
     const [customerPhone, setCustomerPhone] = useState('');
+    const [saleNotes, setSaleNotes] = useState('');
+    const [customDiscount, setCustomDiscount] = useState('');
     const [generatingBill, setGeneratingBill] = useState(false);
 
     // Offer State
@@ -216,8 +218,13 @@ export default function SalesScreen() {
         return (getSubtotal() * activeOffer.discount_percentage) / 100;
     };
 
+    const getCustomDiscountAmount = () => {
+        const amount = parseFloat(customDiscount);
+        return isNaN(amount) ? 0 : amount;
+    };
+
     const getTotal = () => {
-        return getSubtotal() - getDiscountAmount();
+        return getSubtotal() - getDiscountAmount() - getCustomDiscountAmount();
     };
 
     // Save sale to database (sales + sale_items tables)
@@ -225,6 +232,8 @@ export default function SalesScreen() {
         try {
             const subtotal = getSubtotal();
             const discountAmount = getDiscountAmount();
+            const customDiscountAmount = getCustomDiscountAmount();
+            const totalDiscountApplied = discountAmount + customDiscountAmount;
             const total = getTotal();
 
             // 1. Insert into sales table
@@ -232,7 +241,8 @@ export default function SalesScreen() {
                 .from('sales')
                 .insert({
                     total_amount: total,
-                    discount_applied: discountAmount,
+                    discount_applied: totalDiscountApplied,
+                    notes: saleNotes.trim() || null,
                 })
                 .select()
                 .single();
@@ -270,13 +280,23 @@ export default function SalesScreen() {
                     .eq('id', item.book_id)
                     .single();
 
-                if (bookData && !fetchError) {
-                    const newStock = (bookData.stock || 0) - item.quantity;
+                if (fetchError) {
+                    console.error('Error fetching book stock:', fetchError);
+                    continue;
+                }
 
-                    await supabase
+                if (bookData) {
+                    const newStock = (bookData.stock || 0) - item.quantity;
+                    console.log(`Updating stock for book ${item.book_id}: ${bookData.stock} -> ${newStock}`);
+
+                    const { error: updateError } = await supabase
                         .from('books')
                         .update({ stock: newStock })
                         .eq('id', item.book_id);
+
+                    if (updateError) {
+                        console.error('Error updating stock for book:', item.book_id, updateError);
+                    }
                 }
             }
 
@@ -306,6 +326,7 @@ export default function SalesScreen() {
 
             const total = getTotal();
             const discountAmount = getDiscountAmount();
+            const customDiscountAmount = getCustomDiscountAmount();
             const subtotal = getSubtotal();
             const date = new Date().toLocaleString();
 
@@ -329,13 +350,22 @@ export default function SalesScreen() {
                 `👤 Name: Walk-in\n\n` +
                 `📚 *Items:*\n${itemsList}\n\n`;
 
-            if (activeOffer && discountAmount > 0) {
+            // Show subtotal if there are any discounts
+            if ((activeOffer && discountAmount > 0) || customDiscountAmount > 0) {
                 billMessage += `Subtotal: ₹${subtotal.toFixed(2)}\n`;
+            }
+
+            if (activeOffer && discountAmount > 0) {
                 billMessage += `🎉 ${activeOffer.name} (${activeOffer.discount_percentage}% off): -₹${discountAmount.toFixed(2)}\n`;
             }
 
-            billMessage += `💰 *Total: ₹${total.toFixed(2)}*\n\n` +
-                `Thank you for shopping with us!\n` +
+            if (customDiscountAmount > 0) {
+                billMessage += `✨ Special Discount: -₹${customDiscountAmount.toFixed(2)}\n`;
+            }
+
+            billMessage += `💰 *Total: ₹${total.toFixed(2)}*\n`;
+
+            billMessage += `\nThank you for shopping with us!\n` +
                 `Jai Guru 🙏`;
 
             const whatsappUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(billMessage)}`;
@@ -346,6 +376,8 @@ export default function SalesScreen() {
                 setCheckoutVisible(false);
                 setCart([]);
                 setCustomerPhone('');
+                setSaleNotes('');
+                setCustomDiscount('');
 
                 // Open WhatsApp last
                 await Linking.openURL(whatsappUrl);
@@ -517,19 +549,49 @@ export default function SalesScreen() {
             {/* ... Footer ... */}
 
             <View style={styles.footer}>
+                {/* Notes Input */}
+                <TextInput
+                    style={styles.notesInput}
+                    placeholder="Add notes for this sale (optional)..."
+                    value={saleNotes}
+                    onChangeText={setSaleNotes}
+                    multiline
+                    numberOfLines={2}
+                />
+
+                {/* Custom Discount Input */}
+                <View style={styles.customDiscountRow}>
+                    <Text style={styles.customDiscountLabel}>Special Discount (₹)</Text>
+                    <TextInput
+                        style={styles.customDiscountInput}
+                        placeholder="0"
+                        value={customDiscount}
+                        onChangeText={setCustomDiscount}
+                        keyboardType="numeric"
+                    />
+                </View>
+
                 {/* Subtotal */}
                 <View style={styles.subtotalRow}>
                     <Text style={styles.subtotalLabel}>Subtotal</Text>
                     <Text style={styles.subtotalValue}>₹{getSubtotal().toFixed(2)}</Text>
                 </View>
 
-                {/* Discount Row - only show if offer is active */}
+                {/* Offer Discount Row - only show if offer is active */}
                 {activeOffer && (
                     <View style={styles.discountRow}>
                         <Text style={styles.discountLabel}>
                             🎉 {activeOffer.name} ({activeOffer.discount_percentage}% off)
                         </Text>
                         <Text style={styles.discountValue}>-₹{getDiscountAmount().toFixed(2)}</Text>
+                    </View>
+                )}
+
+                {/* Custom Discount Row - only show if custom discount is entered */}
+                {getCustomDiscountAmount() > 0 && (
+                    <View style={styles.customDiscountDisplayRow}>
+                        <Text style={styles.customDiscountDisplayLabel}>✨ Special Discount</Text>
+                        <Text style={styles.customDiscountDisplayValue}>-₹{getCustomDiscountAmount().toFixed(2)}</Text>
                     </View>
                 )}
 
@@ -610,6 +672,8 @@ export default function SalesScreen() {
                                     setCheckoutVisible(false);
                                     setCart([]);
                                     setCustomerPhone('');
+                                    setSaleNotes('');
+                                    setCustomDiscount('');
                                     window.alert('Sale completed successfully!');
                                 }
                             }}
@@ -722,7 +786,7 @@ const styles = StyleSheet.create({
     },
     listContent: {
         padding: 20,
-        paddingBottom: 280,
+        paddingBottom: 380,
     },
     emptyState: {
         alignItems: 'center',
@@ -811,6 +875,60 @@ const styles = StyleSheet.create({
     discountValue: {
         fontSize: 14,
         color: '#2e7d32',
+        fontWeight: '600',
+    },
+    notesInput: {
+        backgroundColor: '#f9f9f9',
+        borderWidth: 1,
+        borderColor: '#e0e0e0',
+        borderRadius: 10,
+        padding: 12,
+        marginBottom: 12,
+        fontSize: 14,
+        color: Colors.yss.text,
+        minHeight: 50,
+        textAlignVertical: 'top',
+    },
+    customDiscountRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        marginBottom: 12,
+    },
+    customDiscountLabel: {
+        fontSize: 14,
+        color: Colors.yss.text,
+        fontWeight: '500',
+    },
+    customDiscountInput: {
+        backgroundColor: '#fff3e0',
+        borderWidth: 1,
+        borderColor: '#ffcc80',
+        borderRadius: 8,
+        paddingHorizontal: 15,
+        paddingVertical: 8,
+        fontSize: 16,
+        fontWeight: '600',
+        color: Colors.yss.orange,
+        width: 100,
+        textAlign: 'center',
+    },
+    customDiscountDisplayRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        marginBottom: 8,
+        backgroundColor: '#fff3e0',
+        padding: 8,
+        borderRadius: 8,
+    },
+    customDiscountDisplayLabel: {
+        fontSize: 14,
+        color: '#e65100',
+        fontWeight: '600',
+    },
+    customDiscountDisplayValue: {
+        fontSize: 14,
+        color: '#e65100',
         fontWeight: '600',
     },
     totalLabel: {
