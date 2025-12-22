@@ -67,6 +67,7 @@ export default function Dashboard() {
     const actions = [
         { label: 'New Sale', icon: 'add-circle', route: '/(auth)/sales' },
         { label: 'Inventory', icon: 'list', route: '/(auth)/inventory' },
+        { label: 'Sales History', icon: 'time-outline', route: '/(auth)/sales-history' },
         { label: 'Reports', icon: 'bar-chart', route: '/(auth)/reports' },
         { label: 'Users', icon: 'people', route: '/(auth)/admin/users' },
     ];

@@ -17,6 +17,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '../../../constants/Colors';
+import { useAuth } from '../../../lib/auth';
 import { supabase } from '../../../lib/supabase';
 
 interface CartItem {
@@ -36,6 +37,7 @@ interface Offer {
 
 export default function SalesScreen() {
     const router = useRouter();
+    const { user } = useAuth();
     const [cart, setCart] = useState<CartItem[]>([]);
     const [scanning, setScanning] = useState(false);
     const [torch, setTorch] = useState(false);
@@ -243,6 +245,7 @@ export default function SalesScreen() {
                     total_amount: total,
                     discount_applied: totalDiscountApplied,
                     notes: saleNotes.trim() || null,
+                    sold_by: user?.id || null,
                 })
                 .select()
                 .single();
@@ -350,17 +353,11 @@ export default function SalesScreen() {
                 `👤 Name: Walk-in\n\n` +
                 `📚 *Items:*\n${itemsList}\n\n`;
 
-            // Show subtotal if there are any discounts
-            if ((activeOffer && discountAmount > 0) || customDiscountAmount > 0) {
+            // Show subtotal and combined offer if there are any discounts
+            const totalOfferAmount = discountAmount + customDiscountAmount;
+            if (totalOfferAmount > 0) {
                 billMessage += `Subtotal: ₹${subtotal.toFixed(2)}\n`;
-            }
-
-            if (activeOffer && discountAmount > 0) {
-                billMessage += `🎉 ${activeOffer.name} (${activeOffer.discount_percentage}% off): -₹${discountAmount.toFixed(2)}\n`;
-            }
-
-            if (customDiscountAmount > 0) {
-                billMessage += `✨ Special Discount: -₹${customDiscountAmount.toFixed(2)}\n`;
+                billMessage += `🎁 Offer: -₹${totalOfferAmount.toFixed(2)}\n`;
             }
 
             billMessage += `💰 *Total: ₹${total.toFixed(2)}*\n`;
@@ -480,8 +477,14 @@ export default function SalesScreen() {
                 <TouchableOpacity style={styles.closeCamera} onPress={() => {
                     setScanning(false);
                     setTorch(false);
+                    // Safely stop the scanner without throwing errors
                     if (scannerRef.current) {
-                        scannerRef.current.stop().catch(console.error);
+                        try {
+                            scannerRef.current.stop().catch(() => { });
+                        } catch (e) {
+                            // Ignore any errors when stopping scanner
+                        }
+                        scannerRef.current = null;
                     }
                 }}>
                     <Ionicons name="close-circle" size={50} color="white" />
