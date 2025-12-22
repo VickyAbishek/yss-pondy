@@ -19,25 +19,28 @@ export default function LoginScreen() {
     const handleGoogleLogin = async () => {
         setAuthLoading(true);
         try {
-            if (debugSignIn) {
-                await debugSignIn();
-                return;
-            }
+            // Get the current origin for web redirect
+            const redirectUrl = typeof window !== 'undefined'
+                ? `${window.location.origin}/auth/callback`
+                : undefined;
 
-            // Logic for Google Login
-            // For Web: supabase.auth.signInWithOAuth({ provider: 'google' })
-            // For Native: Needs deep linking setup (scheme)
-            const { error } = await supabase.auth.signInWithOAuth({
+            const { data, error } = await supabase.auth.signInWithOAuth({
                 provider: 'google',
                 options: {
+                    redirectTo: redirectUrl,
                     queryParams: {
                         access_type: 'offline',
                         prompt: 'consent',
                     },
                 },
             });
+
             if (error) throw error;
+
+            // On web, the browser will redirect to Google
+            // After successful login, Google redirects back to /auth/callback
         } catch (error: any) {
+            console.error('Google login error:', error);
             alert('Error logging in: ' + (error?.message || 'Unknown error'));
         } finally {
             setAuthLoading(false);

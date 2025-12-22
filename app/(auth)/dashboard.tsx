@@ -8,12 +8,26 @@ import { useAuth } from '../../lib/auth';
 import { supabase } from '../../lib/supabase';
 
 export default function Dashboard() {
-    const { user } = useAuth();
+    const { user, session } = useAuth();
     const router = useRouter();
 
     // Stats from database
     const [booksCount, setBooksCount] = useState<number>(0);
     const [todaySalesCount, setTodaySalesCount] = useState<number>(0);
+
+    // Profile dropdown state
+    const [dropdownVisible, setDropdownVisible] = useState(false);
+
+    // Get user's first name from Google profile or email
+    const getUserFirstName = () => {
+        // Try to get from Google user metadata first
+        const fullName = session?.user?.user_metadata?.full_name || session?.user?.user_metadata?.name;
+        if (fullName) {
+            return fullName.split(' ')[0];
+        }
+        // Fallback to email username
+        return user?.email?.split('@')[0] || 'User';
+    };
 
     // Fetch stats on mount
     useEffect(() => {
@@ -59,50 +73,81 @@ export default function Dashboard() {
 
     return (
         <SafeAreaView style={styles.container}>
-            {/* Header - Kept as is per request, just text change */}
+            {/* Header */}
             <View style={styles.header}>
                 <View>
-                    <Text style={styles.greeting}>Jaiguru,</Text>
-                    <Text style={styles.userName}>{user?.email?.split('@')[0] || 'User'}.</Text>
+                    <Text style={styles.greeting}>Jai Guru,</Text>
+                    <Text style={styles.userName}>{getUserFirstName()}.</Text>
                 </View>
-                <TouchableOpacity style={styles.profileButton}>
+                <TouchableOpacity
+                    style={styles.profileButton}
+                    onPress={() => setDropdownVisible(!dropdownVisible)}
+                >
                     <Ionicons name="person-circle-outline" size={40} color={Colors.yss.orange} />
                 </TouchableOpacity>
             </View>
 
-            <ScrollView contentContainerStyle={styles.content}>
-
-                {/* Stats Row */}
-                <View style={styles.statsRow}>
-                    {stats.map((stat, index) => (
-                        <View key={index} style={styles.statCard}>
-                            <View style={styles.statHeader}>
-                                <Text style={styles.statLabel}>{stat.label}</Text>
-                                <Ionicons name={stat.icon as any} size={20} color={Colors.yss.orange} />
-                            </View>
-                            <Text style={styles.statValue}>{stat.value}</Text>
+            {/* Profile Dropdown Menu */}
+            {dropdownVisible && (
+                <View style={styles.dropdownContainer}>
+                    <View style={styles.dropdown}>
+                        <View style={styles.dropdownHeader}>
+                            <Text style={styles.dropdownEmail}>{user?.email}</Text>
                         </View>
-                    ))}
-                </View>
-
-                {/* Actions Grid */}
-                <Text style={styles.sectionTitle}>Quick Actions</Text>
-                <View style={styles.grid}>
-                    {actions.map((action, index) => (
                         <TouchableOpacity
-                            key={index}
-                            style={styles.actionCard}
-                            onPress={() => router.push(action.route as any)}
+                            style={styles.dropdownItem}
+                            onPress={async () => {
+                                setDropdownVisible(false);
+                                await supabase.auth.signOut();
+                                router.replace('/');
+                            }}
                         >
-                            <View style={styles.iconCircle}>
-                                <Ionicons name={action.icon as any} size={30} color={Colors.yss.white} />
-                            </View>
-                            <Text style={styles.actionLabel}>{action.label}</Text>
+                            <Ionicons name="log-out-outline" size={20} color={Colors.yss.text} />
+                            <Text style={styles.dropdownItemText}>Logout</Text>
                         </TouchableOpacity>
-                    ))}
+                    </View>
                 </View>
+            )}
 
-            </ScrollView>
+            <TouchableOpacity
+                style={{ flex: 1 }}
+                activeOpacity={1}
+                onPress={() => dropdownVisible && setDropdownVisible(false)}
+            >
+                <ScrollView contentContainerStyle={styles.content}>
+
+                    {/* Stats Row */}
+                    <View style={styles.statsRow}>
+                        {stats.map((stat, index) => (
+                            <View key={index} style={styles.statCard}>
+                                <View style={styles.statHeader}>
+                                    <Text style={styles.statLabel}>{stat.label}</Text>
+                                    <Ionicons name={stat.icon as any} size={20} color={Colors.yss.orange} />
+                                </View>
+                                <Text style={styles.statValue}>{stat.value}</Text>
+                            </View>
+                        ))}
+                    </View>
+
+                    {/* Actions Grid */}
+                    <Text style={styles.sectionTitle}>Quick Actions</Text>
+                    <View style={styles.grid}>
+                        {actions.map((action, index) => (
+                            <TouchableOpacity
+                                key={index}
+                                style={styles.actionCard}
+                                onPress={() => router.push(action.route as any)}
+                            >
+                                <View style={styles.iconCircle}>
+                                    <Ionicons name={action.icon as any} size={30} color={Colors.yss.white} />
+                                </View>
+                                <Text style={styles.actionLabel}>{action.label}</Text>
+                            </TouchableOpacity>
+                        ))}
+                    </View>
+
+                </ScrollView>
+            </TouchableOpacity>
         </SafeAreaView>
     );
 }
@@ -215,5 +260,41 @@ const styles = StyleSheet.create({
         fontSize: 16,
         fontWeight: '600',
         color: Colors.yss.text,
+    },
+    dropdownContainer: {
+        position: 'absolute',
+        top: 70,
+        right: 20,
+        zIndex: 1000,
+    },
+    dropdown: {
+        backgroundColor: Colors.yss.white,
+        borderRadius: 12,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.15,
+        shadowRadius: 8,
+        elevation: 5,
+        minWidth: 200,
+    },
+    dropdownHeader: {
+        padding: 15,
+        borderBottomWidth: 1,
+        borderBottomColor: '#f0f0f0',
+    },
+    dropdownEmail: {
+        fontSize: 13,
+        color: '#666',
+    },
+    dropdownItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        padding: 15,
+        gap: 10,
+    },
+    dropdownItemText: {
+        fontSize: 15,
+        color: Colors.yss.text,
+        fontWeight: '500',
     },
 });
