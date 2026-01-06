@@ -54,6 +54,7 @@ export default function AppLayout() {
                     <Stack.Screen name="sales" />
                     <Stack.Screen name="reports" />
                     <Stack.Screen name="admin/users" />
+                    <Stack.Screen name="settings/printer" />
                 </Stack>
             </View>
             <BottomNavigation />

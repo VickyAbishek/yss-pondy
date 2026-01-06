@@ -18,6 +18,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '../../../constants/Colors';
 import { useAuth } from '../../../lib/auth';
+import { isPrinterConnected, print } from '../../../lib/bluetooth-printer';
+import { ALIGN_CENTER, ALIGN_LEFT, CHARS_PER_LINE, EscPosEncoder, formatCurrency, truncateText } from '../../../lib/escpos';
 import { supabase } from '../../../lib/supabase';
 
 interface CartItem {
@@ -50,6 +52,8 @@ export default function SalesScreen() {
     const [saleNotes, setSaleNotes] = useState('');
     const [customDiscount, setCustomDiscount] = useState('');
     const [generatingBill, setGeneratingBill] = useState(false);
+    const [printing, setPrinting] = useState(false);
+    const [saleCompleted, setSaleCompleted] = useState(false);
 
     // Offer State
     const [activeOffer, setActiveOffer] = useState<Offer | null>(null);
@@ -390,6 +394,95 @@ export default function SalesScreen() {
         }
     };
 
+    // Print receipt to thermal printer
+    const printReceipt = async () => {
+        if (!isPrinterConnected()) {
+            if (Platform.OS === 'web') {
+                window.alert('No printer connected. Go to Settings > Printer Settings to connect.');
+            } else {
+                Alert.alert('No Printer', 'Please connect a printer in Settings first.');
+            }
+            return;
+        }
+
+        setPrinting(true);
+        try {
+            const encoder = new EscPosEncoder();
+            const date = new Date().toLocaleString('en-IN', {
+                day: '2-digit',
+                month: 'short',
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+
+            const subtotal = getSubtotal();
+            const discountAmount = getDiscountAmount();
+            const customDiscountAmount = getCustomDiscountAmount();
+            const totalDiscount = discountAmount + customDiscountAmount;
+            const total = getTotal();
+
+            // Build receipt
+            encoder
+                .init()
+                .align(ALIGN_CENTER)
+                .bold(true)
+                .line('YSS Pondy')
+                .bold(false)
+                .line('Yogoda Satsanga Society')
+                .line('')
+                .align(ALIGN_LEFT)
+                .line(date)
+                .separator('=');
+
+            // Items
+            cart.forEach(item => {
+                const name = truncateText(item.title, CHARS_PER_LINE - 12);
+                const qty = `x${item.quantity}`;
+                const price = formatCurrency(item.price * item.quantity);
+                encoder.leftRight(`${name} ${qty}`, price);
+            });
+
+            encoder.separator('-');
+
+            // Totals
+            encoder.leftRight('Subtotal:', formatCurrency(subtotal));
+
+            if (totalDiscount > 0) {
+                encoder.leftRight('Discount:', `-${formatCurrency(totalDiscount)}`);
+            }
+
+            encoder
+                .separator('=')
+                .bold(true)
+                .leftRight('TOTAL:', formatCurrency(total))
+                .bold(false)
+                .line('')
+                .align(ALIGN_CENTER)
+                .line('Thank you!')
+                .line('Jai Guru')
+                .feed(3)
+                .cut();
+
+            await print(encoder.encode());
+
+            if (Platform.OS === 'web') {
+                window.alert('Receipt printed successfully!');
+            } else {
+                Alert.alert('Success', 'Receipt printed!');
+            }
+        } catch (error: any) {
+            console.error('Print error:', error);
+            if (Platform.OS === 'web') {
+                window.alert('Failed to print: ' + (error.message || 'Unknown error'));
+            } else {
+                Alert.alert('Print Error', error.message || 'Failed to print receipt');
+            }
+        } finally {
+            setPrinting(false);
+        }
+    };
+
     const updateQuantity = (bookId: string, delta: number) => {
         setCart(prevCart => {
             return prevCart.map(item => {
@@ -672,29 +765,58 @@ export default function SalesScreen() {
                                 setGeneratingBill(false);
 
                                 if (saved) {
-                                    setCheckoutVisible(false);
-                                    setCart([]);
-                                    setCustomerPhone('');
-                                    setSaleNotes('');
-                                    setCustomDiscount('');
-                                    window.alert('Sale completed successfully!');
+                                    setSaleCompleted(true);
+                                    window.alert('Sale completed successfully! You can now print the receipt.');
                                 }
                             }}
-                            disabled={generatingBill}
+                            disabled={generatingBill || saleCompleted}
                         >
                             {generatingBill ? <ActivityIndicator color="white" /> : (
                                 <>
                                     <Ionicons name="checkmark-circle" size={20} color="white" style={{ marginRight: 8 }} />
-                                    <Text style={styles.generateText}>Complete Sale</Text>
+                                    <Text style={styles.generateText}>{saleCompleted ? 'Sale Completed' : 'Complete Sale'}</Text>
+                                </>
+                            )}
+                        </TouchableOpacity>
+
+                        {/* Print Receipt Button - Shows after sale is completed */}
+                        <TouchableOpacity
+                            style={[styles.printButton, !saleCompleted && styles.disabledButton]}
+                            onPress={async () => {
+                                await printReceipt();
+                                // After printing, close modal and reset
+                                setCheckoutVisible(false);
+                                setCart([]);
+                                setCustomerPhone('');
+                                setSaleNotes('');
+                                setCustomDiscount('');
+                                setSaleCompleted(false);
+                            }}
+                            disabled={!saleCompleted || printing}
+                        >
+                            {printing ? <ActivityIndicator color="white" /> : (
+                                <>
+                                    <Ionicons name="print" size={20} color="white" style={{ marginRight: 8 }} />
+                                    <Text style={styles.generateText}>Print Receipt</Text>
                                 </>
                             )}
                         </TouchableOpacity>
 
                         <TouchableOpacity
                             style={styles.cancelButton}
-                            onPress={() => setCheckoutVisible(false)}
+                            onPress={() => {
+                                setCheckoutVisible(false);
+                                if (saleCompleted) {
+                                    // If sale was completed, reset everything
+                                    setCart([]);
+                                    setCustomerPhone('');
+                                    setSaleNotes('');
+                                    setCustomDiscount('');
+                                    setSaleCompleted(false);
+                                }
+                            }}
                         >
-                            <Text style={styles.cancelText}>Cancel</Text>
+                            <Text style={styles.cancelText}>{saleCompleted ? 'Close' : 'Cancel'}</Text>
                         </TouchableOpacity>
                     </View>
                 </View>
@@ -1106,6 +1228,15 @@ const styles = StyleSheet.create({
     },
     completeSaleButton: {
         backgroundColor: Colors.yss.orange,
+        padding: 16,
+        borderRadius: 12,
+        alignItems: 'center',
+        flexDirection: 'row',
+        justifyContent: 'center',
+        marginTop: 10,
+    },
+    printButton: {
+        backgroundColor: '#2196F3',
         padding: 16,
         borderRadius: 12,
         alignItems: 'center',

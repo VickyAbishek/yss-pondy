@@ -97,6 +97,16 @@ export default function Dashboard() {
                         </View>
                         <TouchableOpacity
                             style={styles.dropdownItem}
+                            onPress={() => {
+                                setDropdownVisible(false);
+                                router.push('/(auth)/settings/printer' as any);
+                            }}
+                        >
+                            <Ionicons name="print-outline" size={20} color={Colors.yss.text} />
+                            <Text style={styles.dropdownItemText}>Printer Settings</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                            style={styles.dropdownItem}
                             onPress={async () => {
                                 setDropdownVisible(false);
                                 await supabase.auth.signOut();

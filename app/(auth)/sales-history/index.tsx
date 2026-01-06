@@ -1,9 +1,11 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, FlatList, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, FlatList, Modal, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '../../../constants/Colors';
+import { isPrinterConnected, print } from '../../../lib/bluetooth-printer';
+import { ALIGN_CENTER, ALIGN_LEFT, CHARS_PER_LINE, EscPosEncoder, formatCurrency, truncateText } from '../../../lib/escpos';
 import { supabase } from '../../../lib/supabase';
 
 interface Sale {
@@ -32,6 +34,7 @@ export default function SalesHistoryScreen() {
     const [loading, setLoading] = useState(true);
     const [selectedSale, setSelectedSale] = useState<Sale | null>(null);
     const [detailsVisible, setDetailsVisible] = useState(false);
+    const [printing, setPrinting] = useState(false);
 
     useEffect(() => {
         fetchSales();
@@ -65,6 +68,94 @@ export default function SalesHistoryScreen() {
     const openDetails = (sale: Sale) => {
         setSelectedSale(sale);
         setDetailsVisible(true);
+    };
+
+    // Print receipt for a past sale
+    const printSaleReceipt = async (sale: Sale) => {
+        if (!isPrinterConnected()) {
+            if (Platform.OS === 'web') {
+                window.alert('No printer connected. Go to Settings > Printer Settings to connect.');
+            } else {
+                Alert.alert('No Printer', 'Please connect a printer in Settings first.');
+            }
+            return;
+        }
+
+        setPrinting(true);
+        try {
+            const encoder = new EscPosEncoder();
+            const date = new Date(sale.created_at).toLocaleString('en-IN', {
+                day: '2-digit',
+                month: 'short',
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+
+            const subtotal = sale.total_amount + sale.discount_applied;
+            const discount = sale.discount_applied;
+            const total = sale.total_amount;
+
+            // Build receipt
+            encoder
+                .init()
+                .align(ALIGN_CENTER)
+                .bold(true)
+                .line('YSS Pondy')
+                .bold(false)
+                .line('Yogoda Satsanga Society')
+                .line('(REPRINT)')
+                .line('')
+                .align(ALIGN_LEFT)
+                .line(date)
+                .separator('=');
+
+            // Items
+            sale.sale_items.forEach(item => {
+                const name = truncateText(item.books.title, CHARS_PER_LINE - 12);
+                const qty = `x${item.quantity}`;
+                const price = formatCurrency(item.price_at_sale * item.quantity);
+                encoder.leftRight(`${name} ${qty}`, price);
+            });
+
+            encoder.separator('-');
+
+            // Totals
+            encoder.leftRight('Subtotal:', formatCurrency(subtotal));
+
+            if (discount > 0) {
+                encoder.leftRight('Discount:', `-${formatCurrency(discount)}`);
+            }
+
+            encoder
+                .separator('=')
+                .bold(true)
+                .leftRight('TOTAL:', formatCurrency(total))
+                .bold(false)
+                .line('')
+                .align(ALIGN_CENTER)
+                .line('Thank you!')
+                .line('Jai Guru')
+                .feed(3)
+                .cut();
+
+            await print(encoder.encode());
+
+            if (Platform.OS === 'web') {
+                window.alert('Receipt printed successfully!');
+            } else {
+                Alert.alert('Success', 'Receipt printed!');
+            }
+        } catch (error: any) {
+            console.error('Print error:', error);
+            if (Platform.OS === 'web') {
+                window.alert('Failed to print: ' + (error.message || 'Unknown error'));
+            } else {
+                Alert.alert('Print Error', error.message || 'Failed to print receipt');
+            }
+        } finally {
+            setPrinting(false);
+        }
     };
 
     const renderSaleItem = ({ item }: { item: Sale }) => {
@@ -214,6 +305,22 @@ export default function SalesHistoryScreen() {
                                         </Text>
                                     </View>
                                 </View>
+
+                                {/* Print Receipt Button */}
+                                <TouchableOpacity
+                                    style={[styles.printButton, printing && styles.disabledButton]}
+                                    onPress={() => printSaleReceipt(selectedSale)}
+                                    disabled={printing}
+                                >
+                                    {printing ? (
+                                        <ActivityIndicator color="white" />
+                                    ) : (
+                                        <>
+                                            <Ionicons name="print" size={20} color="white" style={{ marginRight: 8 }} />
+                                            <Text style={styles.printButtonText}>Print Receipt</Text>
+                                        </>
+                                    )}
+                                </TouchableOpacity>
                             </ScrollView>
                         )}
                     </View>
@@ -430,5 +537,22 @@ const styles = StyleSheet.create({
         fontSize: 20,
         fontWeight: 'bold',
         color: Colors.yss.orange,
+    },
+    printButton: {
+        backgroundColor: '#2196F3',
+        padding: 16,
+        borderRadius: 12,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginTop: 20,
+    },
+    printButtonText: {
+        color: 'white',
+        fontSize: 16,
+        fontWeight: '600',
+    },
+    disabledButton: {
+        opacity: 0.5,
     },
 });
