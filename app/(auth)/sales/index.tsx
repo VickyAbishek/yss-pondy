@@ -70,6 +70,8 @@ export default function SalesScreen() {
     const [customerPhone, setCustomerPhone] = useState('');
     const [saleNotes, setSaleNotes] = useState('');
     const [customDiscount, setCustomDiscount] = useState('');
+    const [paymentMethod, setPaymentMethod] = useState<'cash' | 'gpay'>('cash');
+    const [showNotes, setShowNotes] = useState(false);
     const [generatingBill, setGeneratingBill] = useState(false);
     const [printing, setPrinting] = useState(false);
     const [saleCompleted, setSaleCompleted] = useState(false);
@@ -403,13 +405,15 @@ export default function SalesScreen() {
                     discount_applied: totalDiscountApplied,
                     notes: saleNotes.trim() || null,
                     sold_by: user?.id || null,
+                    payment_method: paymentMethod,
                 })
-                .select('id, invoice_number')
+                .select('*')
                 .single();
 
             if (saleError || !saleData) {
                 console.error('Error creating sale:', saleError);
-                window.alert('Failed to save sale. Please try again.');
+                const errorMsg = saleError?.message || 'Unknown error';
+                window.alert('Failed to save sale: ' + errorMsg);
                 return null;
             }
 
@@ -831,76 +835,98 @@ export default function SalesScreen() {
             />
 
             <View style={styles.footer}>
-                <TextInput
-                    style={styles.notesInput}
-                    placeholder="Add notes for this sale (optional)..."
-                    value={saleNotes}
-                    onChangeText={setSaleNotes}
-                    multiline
-                    numberOfLines={2}
-                />
+                {/* Payment Method Toggle */}
+                <View style={styles.paymentMethodRow}>
+                    <Text style={styles.paymentMethodLabel}>Payment:</Text>
+                    <View style={styles.paymentToggle}>
+                        <TouchableOpacity
+                            style={[styles.paymentOption, paymentMethod === 'cash' && styles.paymentOptionActive]}
+                            onPress={() => setPaymentMethod('cash')}
+                        >
+                            <Ionicons name="cash-outline" size={16} color={paymentMethod === 'cash' ? 'white' : Colors.yss.text} />
+                            <Text style={[styles.paymentOptionText, paymentMethod === 'cash' && styles.paymentOptionTextActive]}>Cash</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                            style={[styles.paymentOption, paymentMethod === 'gpay' && styles.paymentOptionActive]}
+                            onPress={() => setPaymentMethod('gpay')}
+                        >
+                            <Ionicons name="phone-portrait-outline" size={16} color={paymentMethod === 'gpay' ? 'white' : Colors.yss.text} />
+                            <Text style={[styles.paymentOptionText, paymentMethod === 'gpay' && styles.paymentOptionTextActive]}>GPay</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
 
-                <View style={styles.customDiscountRow}>
-                    <Text style={styles.customDiscountLabel}>Special Discount (₹)</Text>
+                {/* Collapsible Notes & Discount Row */}
+                <View style={styles.optionsRow}>
+                    <TouchableOpacity style={styles.optionButton} onPress={() => setShowNotes(!showNotes)}>
+                        <Ionicons name="create-outline" size={16} color={Colors.yss.text} />
+                        <Text style={styles.optionButtonText}>Notes</Text>
+                    </TouchableOpacity>
+                    <View style={styles.discountInputRow}>
+                        <Text style={styles.discountInputLabel}>Discount ₹</Text>
+                        <TextInput
+                            style={styles.discountInputSmall}
+                            placeholder="0"
+                            value={customDiscount}
+                            onChangeText={setCustomDiscount}
+                            keyboardType="numeric"
+                        />
+                    </View>
+                </View>
+
+                {/* Notes Input - Only shown when expanded */}
+                {showNotes && (
                     <TextInput
-                        style={styles.customDiscountInput}
-                        placeholder="0"
-                        value={customDiscount}
-                        onChangeText={setCustomDiscount}
-                        keyboardType="numeric"
+                        style={styles.notesInput}
+                        placeholder="Add notes for this sale..."
+                        value={saleNotes}
+                        onChangeText={setSaleNotes}
+                        multiline
+                        numberOfLines={2}
                     />
-                </View>
-
-                <View style={styles.subtotalRow}>
-                    <Text style={styles.subtotalLabel}>Subtotal</Text>
-                    <Text style={styles.subtotalValue}>₹{getSubtotal().toFixed(2)}</Text>
-                </View>
-
-                {getTotalOfferDiscount() > 0 && (
-                    <View style={styles.discountRow}>
-                        <Text style={styles.discountLabel}>🎉 Offer Discounts</Text>
-                        <Text style={styles.discountValue}>-₹{getTotalOfferDiscount().toFixed(2)}</Text>
-                    </View>
                 )}
 
-                {getCustomDiscountAmount() > 0 && (
-                    <View style={styles.customDiscountDisplayRow}>
-                        <Text style={styles.customDiscountDisplayLabel}>✨ Special Discount</Text>
-                        <Text style={styles.customDiscountDisplayValue}>-₹{getCustomDiscountAmount().toFixed(2)}</Text>
+                {/* Totals Section - Compact */}
+                <View style={styles.totalsCompact}>
+                    <View style={styles.totalsLeft}>
+                        {getTotalOfferDiscount() > 0 && (
+                            <Text style={styles.discountTextSmall}>🎉 -₹{getTotalOfferDiscount().toFixed(0)}</Text>
+                        )}
+                        {getCustomDiscountAmount() > 0 && (
+                            <Text style={styles.discountTextSmall}>✨ -₹{getCustomDiscountAmount().toFixed(0)}</Text>
+                        )}
                     </View>
-                )}
-
-                <View style={styles.totalRow}>
-                    <Text style={styles.totalLabel}>Total</Text>
-                    <Text style={styles.totalValue}>₹{getTotal().toFixed(2)}</Text>
+                    <View style={styles.totalsRight}>
+                        <Text style={styles.totalLabelCompact}>Total</Text>
+                        <Text style={styles.totalValueCompact}>₹{getTotal().toFixed(2)}</Text>
+                    </View>
                 </View>
 
+                {/* Action Buttons */}
                 <View style={styles.actionRow}>
-                    <TouchableOpacity style={styles.scanButton} onPress={async () => {
+                    <TouchableOpacity style={styles.scanButtonCompact} onPress={async () => {
                         const hasPermission = await checkPermission();
                         if (hasPermission) {
                             setScanning(true);
                         }
                     }}>
-                        <Ionicons name="scan" size={24} color="white" />
-                        <Text style={styles.scanButtonText}>Scan</Text>
+                        <Ionicons name="scan" size={20} color="white" />
                     </TouchableOpacity>
 
                     <TouchableOpacity
-                        style={styles.searchButton}
+                        style={styles.searchButtonCompact}
                         onPress={() => setSearchVisible(true)}
                     >
-                        <Ionicons name="search" size={24} color="white" />
-                        <Text style={styles.scanButtonText}>Search</Text>
+                        <Ionicons name="search" size={20} color="white" />
                     </TouchableOpacity>
 
                     <TouchableOpacity
-                        style={[styles.checkoutButton, cart.length === 0 && styles.disabledButton]}
+                        style={[styles.checkoutButtonCompact, cart.length === 0 && styles.disabledButton]}
                         onPress={handleCheckout}
                         disabled={cart.length === 0}
                     >
                         <Text style={styles.checkoutText}>Checkout</Text>
-                        <Ionicons name="arrow-forward" size={20} color="white" />
+                        <Ionicons name="arrow-forward" size={18} color="white" />
                     </TouchableOpacity>
                 </View>
             </View>
@@ -958,9 +984,23 @@ export default function SalesScreen() {
                         </TouchableOpacity>
 
                         <TouchableOpacity
-                            style={[styles.printButton, !saleCompleted && styles.disabledButton]}
+                            style={styles.printButton}
                             onPress={async () => {
+                                // If sale not completed yet, complete it first
+                                if (!saleCompleted) {
+                                    setPrinting(true);
+                                    const invoiceNum = await saveSaleToDatabase();
+                                    if (invoiceNum) {
+                                        setCurrentInvoiceNumber(invoiceNum);
+                                        setSaleCompleted(true);
+                                    } else {
+                                        setPrinting(false);
+                                        return; // Don't print if save failed
+                                    }
+                                }
+
                                 await printReceipt();
+                                setPrinting(false);
                                 setCheckoutVisible(false);
                                 setCart([]);
                                 await clearCartStorage();
@@ -970,7 +1010,7 @@ export default function SalesScreen() {
                                 setSaleCompleted(false);
                                 setCurrentInvoiceNumber(null);
                             }}
-                            disabled={!saleCompleted || printing}
+                            disabled={printing}
                         >
                             {printing ? <ActivityIndicator color="white" /> : (
                                 <>
@@ -1529,5 +1569,146 @@ const styles = StyleSheet.create({
         color: '#666',
         marginBottom: 15,
         fontStyle: 'italic',
+    },
+    // Mobile-optimized footer styles
+    paymentMethodRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        marginBottom: 10,
+    },
+    paymentMethodLabel: {
+        fontSize: 14,
+        fontWeight: '600',
+        color: Colors.yss.text,
+    },
+    paymentToggle: {
+        flexDirection: 'row',
+        gap: 8,
+    },
+    paymentOption: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+        borderRadius: 20,
+        backgroundColor: '#f5f5f5',
+        borderWidth: 1,
+        borderColor: '#ddd',
+    },
+    paymentOptionActive: {
+        backgroundColor: Colors.yss.orange,
+        borderColor: Colors.yss.orange,
+    },
+    paymentOptionText: {
+        fontSize: 13,
+        fontWeight: '500',
+        color: Colors.yss.text,
+    },
+    paymentOptionTextActive: {
+        color: 'white',
+    },
+    optionsRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        marginBottom: 8,
+    },
+    optionButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        backgroundColor: '#f5f5f5',
+        borderRadius: 15,
+    },
+    optionButtonText: {
+        fontSize: 12,
+        color: Colors.yss.text,
+    },
+    discountInputRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+    },
+    discountInputLabel: {
+        fontSize: 13,
+        color: Colors.yss.text,
+        fontWeight: '500',
+    },
+    discountInputSmall: {
+        backgroundColor: '#fff3e0',
+        borderWidth: 1,
+        borderColor: '#ffcc80',
+        borderRadius: 8,
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        fontSize: 14,
+        fontWeight: '600',
+        color: Colors.yss.orange,
+        width: 70,
+        textAlign: 'center',
+    },
+    totalsCompact: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingVertical: 8,
+        marginBottom: 8,
+        borderTopWidth: 1,
+        borderTopColor: 'rgba(0,0,0,0.05)',
+    },
+    totalsLeft: {
+        flexDirection: 'row',
+        gap: 10,
+    },
+    discountTextSmall: {
+        fontSize: 12,
+        color: '#2e7d32',
+        fontWeight: '500',
+    },
+    totalsRight: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+    },
+    totalLabelCompact: {
+        fontSize: 14,
+        color: Colors.yss.text,
+        fontWeight: '500',
+    },
+    totalValueCompact: {
+        fontSize: 22,
+        fontWeight: 'bold',
+        color: Colors.yss.orange,
+    },
+    scanButtonCompact: {
+        width: 48,
+        height: 48,
+        borderRadius: 12,
+        backgroundColor: Colors.yss.text,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    searchButtonCompact: {
+        width: 48,
+        height: 48,
+        borderRadius: 12,
+        backgroundColor: Colors.yss.secondaryOrange || '#F9A825',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    checkoutButtonCompact: {
+        flex: 1,
+        marginLeft: 10,
+        backgroundColor: Colors.yss.orange,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingVertical: 14,
+        borderRadius: 12,
+        gap: 6,
     },
 });

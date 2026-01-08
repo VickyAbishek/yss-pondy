@@ -4,6 +4,7 @@ import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, Modal, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '../../../constants/Colors';
+import { useAuth } from '../../../lib/auth';
 import { isPrinterConnected, print } from '../../../lib/bluetooth-printer';
 import { ALIGN_CENTER, ALIGN_LEFT, CHARS_PER_LINE, EscPosEncoder, formatCurrency, truncateText } from '../../../lib/escpos';
 import { supabase } from '../../../lib/supabase';
@@ -31,11 +32,13 @@ interface Sale {
 
 export default function SalesHistoryScreen() {
     const router = useRouter();
+    const { user, isAdmin } = useAuth();
     const [sales, setSales] = useState<Sale[]>([]);
     const [loading, setLoading] = useState(true);
     const [selectedSale, setSelectedSale] = useState<Sale | null>(null);
     const [detailsVisible, setDetailsVisible] = useState(false);
     const [printing, setPrinting] = useState(false);
+    const [deleting, setDeleting] = useState(false);
 
     useEffect(() => {
         fetchSales();
@@ -112,7 +115,6 @@ export default function SalesHistoryScreen() {
             }
 
             encoder
-                .line('(REPRINT)')
                 .line('')
                 .align(ALIGN_LEFT)
                 .line(date)
@@ -163,6 +165,83 @@ export default function SalesHistoryScreen() {
             }
         } finally {
             setPrinting(false);
+        }
+    };
+
+    // Delete sale (admin only)
+    const deleteSale = async (sale: Sale) => {
+        const confirmDelete = () => {
+            return new Promise<boolean>((resolve) => {
+                if (Platform.OS === 'web') {
+                    resolve(window.confirm(`Delete Invoice #${sale.invoice_number}? This action cannot be undone.`));
+                } else {
+                    Alert.alert(
+                        'Delete Sale',
+                        `Delete Invoice #${sale.invoice_number}? This action cannot be undone.`,
+                        [
+                            { text: 'Cancel', onPress: () => resolve(false) },
+                            { text: 'Delete', onPress: () => resolve(true), style: 'destructive' }
+                        ]
+                    );
+                }
+            });
+        };
+
+        const confirmed = await confirmDelete();
+        if (!confirmed) return;
+
+        setDeleting(true);
+        try {
+            // First, save to deleted_sales audit table
+            const { error: auditError } = await supabase
+                .from('deleted_sales')
+                .insert({
+                    original_sale_id: sale.id,
+                    invoice_number: sale.invoice_number,
+                    total_amount: sale.total_amount,
+                    discount_applied: sale.discount_applied,
+                    sale_created_at: sale.created_at,
+                    deleted_by: user?.id || null,
+                });
+
+            if (auditError) {
+                console.error('Error saving to audit:', auditError);
+                // Continue with deletion even if audit fails
+            }
+
+            // Delete sale_items first (foreign key constraint)
+            await supabase
+                .from('sale_items')
+                .delete()
+                .eq('sale_id', sale.id);
+
+            // Then delete the sale
+            const { error: deleteError } = await supabase
+                .from('sales')
+                .delete()
+                .eq('id', sale.id);
+
+            if (deleteError) throw deleteError;
+
+            // Update local state
+            setSales(prev => prev.filter(s => s.id !== sale.id));
+            setDetailsVisible(false);
+            setSelectedSale(null);
+
+            if (Platform.OS === 'web') {
+                window.alert('Sale deleted successfully');
+            } else {
+                Alert.alert('Success', 'Sale deleted');
+            }
+        } catch (error: any) {
+            console.error('Delete error:', error);
+            if (Platform.OS === 'web') {
+                window.alert('Failed to delete: ' + (error.message || 'Unknown error'));
+            } else {
+                Alert.alert('Error', error.message || 'Failed to delete sale');
+            }
+        } finally {
+            setDeleting(false);
         }
     };
 
@@ -332,6 +411,24 @@ export default function SalesHistoryScreen() {
                                         </>
                                     )}
                                 </TouchableOpacity>
+
+                                {/* Delete Button - Admin Only */}
+                                {isAdmin && (
+                                    <TouchableOpacity
+                                        style={[styles.deleteButton, deleting && styles.disabledButton]}
+                                        onPress={() => deleteSale(selectedSale)}
+                                        disabled={deleting}
+                                    >
+                                        {deleting ? (
+                                            <ActivityIndicator color="white" />
+                                        ) : (
+                                            <>
+                                                <Ionicons name="trash-outline" size={20} color="white" style={{ marginRight: 8 }} />
+                                                <Text style={styles.deleteButtonText}>Delete Sale</Text>
+                                            </>
+                                        )}
+                                    </TouchableOpacity>
+                                )}
                             </ScrollView>
                         )}
                     </View>
@@ -571,5 +668,19 @@ const styles = StyleSheet.create({
     },
     disabledButton: {
         opacity: 0.5,
+    },
+    deleteButton: {
+        backgroundColor: '#d32f2f',
+        padding: 16,
+        borderRadius: 12,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginTop: 10,
+    },
+    deleteButtonText: {
+        color: 'white',
+        fontSize: 16,
+        fontWeight: '600',
     },
 });
