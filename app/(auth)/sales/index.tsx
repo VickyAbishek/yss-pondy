@@ -1,7 +1,8 @@
 import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { CameraView, useCameraPermissions } from 'expo-camera';
-import { useRouter } from 'expo-router';
-import React, { useEffect, useRef, useState } from 'react';
+import { useFocusEffect, useRouter } from 'expo-router';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
     ActivityIndicator,
     Alert,
@@ -22,17 +23,35 @@ import { isPrinterConnected, print } from '../../../lib/bluetooth-printer';
 import { ALIGN_CENTER, ALIGN_LEFT, CHARS_PER_LINE, EscPosEncoder, formatCurrency, truncateText } from '../../../lib/escpos';
 import { supabase } from '../../../lib/supabase';
 
+const CART_STORAGE_KEY = 'yss_pondy_cart';
+
+interface AppliedOffer {
+    type: 'product' | 'general' | 'none';
+    name: string;
+    discount_percentage: number;
+}
+
 interface CartItem {
     book_id: string;
     isbn: string;
     title: string;
     price: number;
     quantity: number;
+    appliedOffer: AppliedOffer | null;
+    offerRemoved: boolean; // User manually removed offer
+    isCustomItem: boolean; // For temporary items (not in DB)
 }
 
 interface Offer {
     id: string;
     name: string;
+    discount_percentage: number;
+    is_active: boolean;
+}
+
+interface BookOffer {
+    book_id: string;
+    offer_name: string;
     discount_percentage: number;
     is_active: boolean;
 }
@@ -44,7 +63,7 @@ export default function SalesScreen() {
     const [scanning, setScanning] = useState(false);
     const [torch, setTorch] = useState(false);
     const [permission, requestPermission] = useCameraPermissions();
-    const [processing, setProcessing] = useState(false); // For adding items state
+    const [processing, setProcessing] = useState(false);
 
     // Checkout State
     const [checkoutVisible, setCheckoutVisible] = useState(false);
@@ -54,9 +73,11 @@ export default function SalesScreen() {
     const [generatingBill, setGeneratingBill] = useState(false);
     const [printing, setPrinting] = useState(false);
     const [saleCompleted, setSaleCompleted] = useState(false);
+    const [currentInvoiceNumber, setCurrentInvoiceNumber] = useState<number | null>(null);
 
     // Offer State
     const [activeOffer, setActiveOffer] = useState<Offer | null>(null);
+    const [bookOffers, setBookOffers] = useState<Map<string, BookOffer>>(new Map());
 
     // Search Modal State
     const [searchVisible, setSearchVisible] = useState(false);
@@ -64,27 +85,116 @@ export default function SalesScreen() {
     const [searchResults, setSearchResults] = useState<any[]>([]);
     const [searchLoading, setSearchLoading] = useState(false);
 
+    // Custom Item Modal State
+    const [customItemVisible, setCustomItemVisible] = useState(false);
+    const [customItemName, setCustomItemName] = useState('');
+    const [customItemPrice, setCustomItemPrice] = useState('');
+
     // Web Scanner Ref
     const scannerRef = useRef<any>(null);
     const lastScannedCode = useRef<string | null>(null);
     const lastScanTime = useRef<number>(0);
 
-    // Fetch active offer on mount
-    useEffect(() => {
-        const fetchActiveOffer = async () => {
-            const { data, error } = await supabase
-                .from('offers')
-                .select('*')
-                .eq('is_active', true)
-                .limit(1)
-                .single();
+    // Load cart from storage on mount
+    useFocusEffect(
+        useCallback(() => {
+            loadCartFromStorage();
+            fetchOffers();
+        }, [])
+    );
 
-            if (data && !error) {
-                setActiveOffer(data);
+    // Save cart to storage whenever it changes
+    useEffect(() => {
+        if (cart.length > 0) {
+            saveCartToStorage();
+        }
+    }, [cart]);
+
+    const loadCartFromStorage = async () => {
+        try {
+            const stored = await AsyncStorage.getItem(CART_STORAGE_KEY);
+            if (stored) {
+                const parsedCart = JSON.parse(stored);
+                setCart(parsedCart);
             }
-        };
-        fetchActiveOffer();
-    }, []);
+        } catch (error) {
+            console.error('Error loading cart:', error);
+        }
+    };
+
+    const saveCartToStorage = async () => {
+        try {
+            await AsyncStorage.setItem(CART_STORAGE_KEY, JSON.stringify(cart));
+        } catch (error) {
+            console.error('Error saving cart:', error);
+        }
+    };
+
+    const clearCartStorage = async () => {
+        try {
+            await AsyncStorage.removeItem(CART_STORAGE_KEY);
+        } catch (error) {
+            console.error('Error clearing cart:', error);
+        }
+    };
+
+    const fetchOffers = async () => {
+        // Fetch active general offer
+        const { data: generalOffer, error: generalError } = await supabase
+            .from('offers')
+            .select('*')
+            .eq('is_active', true)
+            .limit(1)
+            .single();
+
+        if (generalOffer && !generalError) {
+            setActiveOffer(generalOffer);
+        } else {
+            setActiveOffer(null);
+        }
+
+        // Fetch all active book-specific offers
+        const { data: productOffers, error: productError } = await supabase
+            .from('book_offers')
+            .select('*')
+            .eq('is_active', true);
+
+        console.log('Fetched book offers:', productOffers, 'Error:', productError);
+
+        if (productOffers && !productError) {
+            const offerMap = new Map<string, BookOffer>();
+            productOffers.forEach(offer => {
+                console.log('Mapping book offer:', offer.book_id, '->', offer.offer_name);
+                offerMap.set(offer.book_id, offer);
+            });
+            setBookOffers(offerMap);
+        }
+    };
+
+    const getOfferForBook = (bookId: string): AppliedOffer | null => {
+        // Check for product-specific offer first (takes priority)
+        const bookOffer = bookOffers.get(bookId);
+        console.log('getOfferForBook called for:', bookId, 'Found product offer:', bookOffer, 'bookOffers size:', bookOffers.size);
+
+        if (bookOffer) {
+            return {
+                type: 'product',
+                name: bookOffer.offer_name,
+                discount_percentage: bookOffer.discount_percentage
+            };
+        }
+
+        // Fall back to general offer
+        if (activeOffer) {
+            return {
+                type: 'general',
+                name: activeOffer.name,
+                discount_percentage: activeOffer.discount_percentage
+            };
+        }
+
+        return null;
+    };
 
     const checkPermission = async () => {
         if (Platform.OS !== 'web' && !permission?.granted) {
@@ -97,7 +207,6 @@ export default function SalesScreen() {
     const addToCart = async (isbn: string) => {
         setProcessing(true);
         try {
-            // Check availability in DB
             const { data, error } = await supabase
                 .from('books')
                 .select('*')
@@ -109,61 +218,109 @@ export default function SalesScreen() {
                 return;
             }
 
-            // Check if already in cart
+            const offer = getOfferForBook(data.id);
+
             setCart(prevCart => {
                 const existingIndex = prevCart.findIndex(item => item.book_id === data.id);
                 if (existingIndex >= 0) {
-                    // Increment
                     const newCart = [...prevCart];
                     newCart[existingIndex].quantity += 1;
-                    console.log('Updated quantity for existing item:', newCart[existingIndex]);
                     return newCart;
                 } else {
-                    // Add new
-                    const newItem = {
+                    const newItem: CartItem = {
                         book_id: data.id,
                         isbn: data.isbn,
                         title: data.title,
                         price: data.price,
-                        quantity: 1
+                        quantity: 1,
+                        appliedOffer: offer,
+                        offerRemoved: false,
+                        isCustomItem: false
                     };
-                    console.log('Adding new item to cart:', newItem);
                     return [...prevCart, newItem];
                 }
             });
 
-            // Feedback (Toast or Sound could go here)
             if (Platform.OS === 'web') {
-                // Simple web feedback
                 console.log(`Added ${data.title}`);
             }
-
         } catch (err: any) {
             console.error('Caught error in addToCart:', err);
         } finally {
             setProcessing(false);
-            console.log('addToCart completed');
         }
+    };
+
+    const addCustomItem = () => {
+        if (!customItemName.trim()) {
+            window.alert('Please enter an item name');
+            return;
+        }
+        const price = parseFloat(customItemPrice);
+        if (isNaN(price) || price <= 0) {
+            window.alert('Please enter a valid price');
+            return;
+        }
+
+        // Custom items get general offer if available
+        const customItemOffer: AppliedOffer | null = activeOffer ? {
+            type: 'general',
+            name: activeOffer.name,
+            discount_percentage: activeOffer.discount_percentage
+        } : null;
+
+        const customItem: CartItem = {
+            book_id: `custom_${Date.now()}`,
+            isbn: '',
+            title: customItemName.trim(),
+            price: price,
+            quantity: 1,
+            appliedOffer: customItemOffer,
+            offerRemoved: false,
+            isCustomItem: true
+        };
+
+        setCart(prev => [...prev, customItem]);
+        setCustomItemVisible(false);
+        setCustomItemName('');
+        setCustomItemPrice('');
+    };
+
+    const removeOfferFromItem = (bookId: string) => {
+        setCart(prevCart =>
+            prevCart.map(item =>
+                item.book_id === bookId
+                    ? { ...item, offerRemoved: true, appliedOffer: null }
+                    : item
+            )
+        );
+    };
+
+    const restoreOfferToItem = (bookId: string) => {
+        setCart(prevCart =>
+            prevCart.map(item => {
+                if (item.book_id === bookId && !item.isCustomItem) {
+                    const offer = getOfferForBook(bookId);
+                    return { ...item, offerRemoved: false, appliedOffer: offer };
+                }
+                return item;
+            })
+        );
     };
 
     const onBarcodeScanned = ({ data }: { data: string }) => {
         setScanning(false);
         setTorch(false);
-        // Stop web scanner if running
         if (scannerRef.current) {
             scannerRef.current.stop().catch(console.error);
             scannerRef.current = null;
         }
-
-        // Add to cart
         addToCart(data);
     };
 
     // Web Scanner Effect
     React.useEffect(() => {
-        console.log('useEffect triggered. scanning:', scanning, 'Platform:', Platform.OS);
         if (scanning && Platform.OS === 'web') {
-            console.log('Starting web scanner...');
             const { Html5Qrcode } = require('html5-qrcode');
 
             const startScanner = async () => {
@@ -171,7 +328,6 @@ export default function SalesScreen() {
                 scannerRef.current = html5QrCode;
 
                 try {
-                    console.log('Calling html5QrCode.start()...');
                     await html5QrCode.start(
                         { facingMode: "environment" },
                         {
@@ -184,14 +340,10 @@ export default function SalesScreen() {
                             }
                         },
                         (decodedText: string) => {
-                            console.log('Web scanner detected code:', decodedText);
                             onBarcodeScanned({ data: decodedText });
                         },
-                        (errorMessage: string) => {
-                            // Ignore scanning errors (happens frequently)
-                        }
+                        (errorMessage: string) => { }
                     );
-                    console.log('Web scanner started successfully');
                 } catch (err) {
                     console.error("Error starting web scanner", err);
                     setScanning(false);
@@ -202,7 +354,6 @@ export default function SalesScreen() {
             setTimeout(startScanner, 100);
 
             return () => {
-                console.log('Cleaning up web scanner...');
                 if (scannerRef.current) {
                     scannerRef.current.stop().catch(console.error);
                 }
@@ -219,9 +370,13 @@ export default function SalesScreen() {
         return cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
     };
 
-    const getDiscountAmount = () => {
-        if (!activeOffer) return 0;
-        return (getSubtotal() * activeOffer.discount_percentage) / 100;
+    const getItemDiscount = (item: CartItem): number => {
+        if (item.offerRemoved || !item.appliedOffer) return 0;
+        return (item.price * item.quantity * item.appliedOffer.discount_percentage) / 100;
+    };
+
+    const getTotalOfferDiscount = () => {
+        return cart.reduce((sum, item) => sum + getItemDiscount(item), 0);
     };
 
     const getCustomDiscountAmount = () => {
@@ -230,19 +385,17 @@ export default function SalesScreen() {
     };
 
     const getTotal = () => {
-        return getSubtotal() - getDiscountAmount() - getCustomDiscountAmount();
+        return getSubtotal() - getTotalOfferDiscount() - getCustomDiscountAmount();
     };
 
-    // Save sale to database (sales + sale_items tables)
-    const saveSaleToDatabase = async (): Promise<boolean> => {
+    const saveSaleToDatabase = async (): Promise<number | null> => {
         try {
             const subtotal = getSubtotal();
-            const discountAmount = getDiscountAmount();
+            const totalOfferDiscount = getTotalOfferDiscount();
             const customDiscountAmount = getCustomDiscountAmount();
-            const totalDiscountApplied = discountAmount + customDiscountAmount;
+            const totalDiscountApplied = totalOfferDiscount + customDiscountAmount;
             const total = getTotal();
 
-            // 1. Insert into sales table
             const { data: saleData, error: saleError } = await supabase
                 .from('sales')
                 .insert({
@@ -251,67 +404,61 @@ export default function SalesScreen() {
                     notes: saleNotes.trim() || null,
                     sold_by: user?.id || null,
                 })
-                .select()
+                .select('id, invoice_number')
                 .single();
 
             if (saleError || !saleData) {
                 console.error('Error creating sale:', saleError);
                 window.alert('Failed to save sale. Please try again.');
-                return false;
+                return null;
             }
 
-            // 2. Insert into sale_items table
-            const saleItems = cart.map(item => ({
-                sale_id: saleData.id,
-                book_id: item.book_id,
-                quantity: item.quantity,
-                price_at_sale: item.price,
-            }));
+            // Only insert sale_items for non-custom items
+            const saleItems = cart
+                .filter(item => !item.isCustomItem)
+                .map(item => ({
+                    sale_id: saleData.id,
+                    book_id: item.book_id,
+                    quantity: item.quantity,
+                    price_at_sale: item.price,
+                }));
 
-            const { error: itemsError } = await supabase
-                .from('sale_items')
-                .insert(saleItems);
+            if (saleItems.length > 0) {
+                const { error: itemsError } = await supabase
+                    .from('sale_items')
+                    .insert(saleItems);
 
-            if (itemsError) {
-                console.error('Error creating sale items:', itemsError);
-                window.alert('Sale created but items failed to save.');
-                return false;
+                if (itemsError) {
+                    console.error('Error creating sale items:', itemsError);
+                    window.alert('Sale created but items failed to save.');
+                    return null;
+                }
             }
 
-            // 3. Reduce stock for each book sold
-            for (const item of cart) {
-                // Get current stock
+            // Reduce stock for each book sold (not custom items)
+            for (const item of cart.filter(i => !i.isCustomItem)) {
                 const { data: bookData, error: fetchError } = await supabase
                     .from('books')
                     .select('stock')
                     .eq('id', item.book_id)
                     .single();
 
-                if (fetchError) {
-                    console.error('Error fetching book stock:', fetchError);
-                    continue;
-                }
+                if (fetchError) continue;
 
                 if (bookData) {
                     const newStock = (bookData.stock || 0) - item.quantity;
-                    console.log(`Updating stock for book ${item.book_id}: ${bookData.stock} -> ${newStock}`);
-
-                    const { error: updateError } = await supabase
+                    await supabase
                         .from('books')
                         .update({ stock: newStock })
                         .eq('id', item.book_id);
-
-                    if (updateError) {
-                        console.error('Error updating stock for book:', item.book_id, updateError);
-                    }
                 }
             }
 
-            return true;
+            return saleData.invoice_number || null;
         } catch (error) {
             console.error('Error saving sale:', error);
             window.alert('An unexpected error occurred. Please try again.');
-            return false;
+            return null;
         }
     };
 
@@ -323,69 +470,66 @@ export default function SalesScreen() {
 
         setGeneratingBill(true);
         try {
-            // IMPORTANT: Save to database FIRST before opening WhatsApp
-            // This ensures data is saved even if app goes to background
-            const saved = await saveSaleToDatabase();
-            if (!saved) {
+            const invoiceNum = await saveSaleToDatabase();
+            if (!invoiceNum) {
                 setGeneratingBill(false);
-                return; // Don't proceed if save failed
+                return;
             }
 
+            setCurrentInvoiceNumber(invoiceNum);
+
             const total = getTotal();
-            const discountAmount = getDiscountAmount();
+            const totalOfferDiscount = getTotalOfferDiscount();
             const customDiscountAmount = getCustomDiscountAmount();
             const subtotal = getSubtotal();
             const date = new Date().toLocaleString();
 
-            // Clean phone number (remove spaces, dashes, etc.)
             let cleanPhone = customerPhone.replace(/[\s\-\(\)]/g, '');
-            // Add country code if not present
             if (!cleanPhone.startsWith('+')) {
-                cleanPhone = '+91' + cleanPhone; // Default to India
+                cleanPhone = '+91' + cleanPhone;
             }
-            // Remove the + for wa.me URL
             cleanPhone = cleanPhone.replace('+', '');
 
-            // Create bill summary message
-            const itemsList = cart.map(item =>
-                `• ${item.title} x${item.quantity} = ₹${(item.price * item.quantity).toFixed(2)}`
-            ).join('\n');
+            const itemsList = cart.map(item => {
+                let line = `• ${item.title} x${item.quantity} = ₹${(item.price * item.quantity).toFixed(2)}`;
+                if (item.appliedOffer && !item.offerRemoved) {
+                    line += ` (${item.appliedOffer.discount_percentage}% off)`;
+                }
+                return line;
+            }).join('\n');
 
-            // Include discount info if applicable
-            let billMessage = `🙏 *Yogoda Satsanga Society (YSS) Pondy - Bill Receipt*\n\n` +
+            let billMessage = `🙏 *Yogoda Satsanga Society of India*\n` +
+                `*YSS Pondy - Bill Receipt*\n\n` +
+                `🧾 Invoice #: ${invoiceNum}\n` +
                 `📅 Date: ${date}\n` +
                 `👤 Name: Walk-in\n\n` +
                 `📚 *Items:*\n${itemsList}\n\n`;
 
-            // Show subtotal and combined offer if there are any discounts
-            const totalOfferAmount = discountAmount + customDiscountAmount;
+            const totalOfferAmount = totalOfferDiscount + customDiscountAmount;
             if (totalOfferAmount > 0) {
                 billMessage += `Subtotal: ₹${subtotal.toFixed(2)}\n`;
-                billMessage += `🎁 Offer: -₹${totalOfferAmount.toFixed(2)}\n`;
+                billMessage += `🎁 Discount: -₹${totalOfferAmount.toFixed(2)}\n`;
             }
 
             billMessage += `💰 *Total: ₹${total.toFixed(2)}*\n`;
-
             billMessage += `\nThank you for shopping with us!\n` +
-                `Jai Guru 🙏`;
+                `🌸 Jai Guru 🌸`;
 
             const whatsappUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(billMessage)}`;
 
             const supported = await Linking.canOpenURL(whatsappUrl);
             if (supported) {
-                // Clear cart BEFORE opening WhatsApp (data already saved to DB)
                 setCheckoutVisible(false);
                 setCart([]);
+                await clearCartStorage();
                 setCustomerPhone('');
                 setSaleNotes('');
                 setCustomDiscount('');
-
-                // Open WhatsApp last
+                setCurrentInvoiceNumber(null);
                 await Linking.openURL(whatsappUrl);
             } else {
-                Alert.alert("WhatsApp Not Available", "Could not open WhatsApp. Please make sure it's installed.");
+                Alert.alert("WhatsApp Not Available", "Could not open WhatsApp.");
             }
-
         } catch (error) {
             console.error(error);
             Alert.alert("Error", "Failed to share bill via WhatsApp");
@@ -394,7 +538,6 @@ export default function SalesScreen() {
         }
     };
 
-    // Print receipt to thermal printer
     const printReceipt = async () => {
         if (!isPrinterConnected()) {
             if (Platform.OS === 'web') {
@@ -417,9 +560,9 @@ export default function SalesScreen() {
             });
 
             const subtotal = getSubtotal();
-            const discountAmount = getDiscountAmount();
+            const totalOfferDiscount = getTotalOfferDiscount();
             const customDiscountAmount = getCustomDiscountAmount();
-            const totalDiscount = discountAmount + customDiscountAmount;
+            const totalDiscount = totalOfferDiscount + customDiscountAmount;
             const total = getTotal();
 
             // Build receipt
@@ -427,9 +570,15 @@ export default function SalesScreen() {
                 .init()
                 .align(ALIGN_CENTER)
                 .bold(true)
-                .line('YSS Pondy')
+                .line('Yogoda Satsanga Society of India')
                 .bold(false)
-                .line('Yogoda Satsanga Society')
+                .line('YSS Pondy');
+
+            if (currentInvoiceNumber) {
+                encoder.line(`Invoice #${currentInvoiceNumber}`);
+            }
+
+            encoder
                 .line('')
                 .align(ALIGN_LEFT)
                 .line(date)
@@ -441,11 +590,16 @@ export default function SalesScreen() {
                 const qty = `x${item.quantity}`;
                 const price = formatCurrency(item.price * item.quantity);
                 encoder.leftRight(`${name} ${qty}`, price);
+
+                // Show per-item discount if applicable
+                const discount = getItemDiscount(item);
+                if (discount > 0 && item.appliedOffer) {
+                    encoder.leftRight(`  ${item.appliedOffer.discount_percentage}% off`, `-${formatCurrency(discount)}`);
+                }
             });
 
             encoder.separator('-');
 
-            // Totals
             encoder.leftRight('Subtotal:', formatCurrency(subtotal));
 
             if (totalDiscount > 0) {
@@ -460,7 +614,7 @@ export default function SalesScreen() {
                 .line('')
                 .align(ALIGN_CENTER)
                 .line('Thank you!')
-                .line('Jai Guru')
+                .line('* Jai Guru *')
                 .feed(3)
                 .cut();
 
@@ -495,7 +649,6 @@ export default function SalesScreen() {
         });
     };
 
-    // Search books in inventory
     const searchBooks = async (query: string) => {
         if (!query.trim()) {
             setSearchResults([]);
@@ -520,27 +673,28 @@ export default function SalesScreen() {
         }
     };
 
-    // Add book from search results to cart
     const addBookToCart = (book: any) => {
+        const offer = getOfferForBook(book.id);
+
         setCart(prevCart => {
             const existingIndex = prevCart.findIndex(item => item.book_id === book.id);
             if (existingIndex >= 0) {
-                // Increment quantity
                 const newCart = [...prevCart];
                 newCart[existingIndex].quantity += 1;
                 return newCart;
             } else {
-                // Add new item
                 return [...prevCart, {
                     book_id: book.id,
                     isbn: book.isbn || '',
                     title: book.title,
                     price: book.price,
-                    quantity: 1
+                    quantity: 1,
+                    appliedOffer: offer,
+                    offerRemoved: false,
+                    isCustomItem: false
                 }];
             }
         });
-        // Close search modal after adding
         setSearchVisible(false);
         setSearchQuery('');
         setSearchResults([]);
@@ -570,13 +724,10 @@ export default function SalesScreen() {
                 <TouchableOpacity style={styles.closeCamera} onPress={() => {
                     setScanning(false);
                     setTorch(false);
-                    // Safely stop the scanner without throwing errors
                     if (scannerRef.current) {
                         try {
                             scannerRef.current.stop().catch(() => { });
-                        } catch (e) {
-                            // Ignore any errors when stopping scanner
-                        }
+                        } catch (e) { }
                         scannerRef.current = null;
                     }
                 }}>
@@ -595,13 +746,14 @@ export default function SalesScreen() {
 
     return (
         <SafeAreaView style={styles.container}>
-            {/* ... Header ... */}
             <View style={styles.header}>
                 <TouchableOpacity onPress={() => router.back()}>
                     <Ionicons name="arrow-back" size={24} color={Colors.yss.text} />
                 </TouchableOpacity>
                 <Text style={styles.headerTitle}>New Sale</Text>
-                <View style={{ width: 24 }} />
+                <TouchableOpacity onPress={() => setCustomItemVisible(true)}>
+                    <Ionicons name="add-circle-outline" size={28} color={Colors.yss.orange} />
+                </TouchableOpacity>
             </View>
 
             <FlatList
@@ -618,8 +770,38 @@ export default function SalesScreen() {
                 renderItem={({ item }) => (
                     <View style={styles.cartItem}>
                         <View style={{ flex: 1 }}>
-                            <Text style={styles.itemTitle}>{item.title}</Text>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                                <Text style={styles.itemTitle}>{item.title}</Text>
+                                {item.isCustomItem && (
+                                    <View style={styles.customBadge}>
+                                        <Text style={styles.customBadgeText}>Custom</Text>
+                                    </View>
+                                )}
+                            </View>
                             <Text style={styles.itemSubtitle}>₹{item.price} each</Text>
+
+                            {/* Offer info */}
+                            {item.appliedOffer && !item.offerRemoved && (
+                                <View style={styles.offerBadge}>
+                                    <Text style={styles.offerBadgeText}>
+                                        🎉 {item.appliedOffer.name} ({item.appliedOffer.discount_percentage}% off)
+                                    </Text>
+                                    <TouchableOpacity onPress={() => removeOfferFromItem(item.book_id)}>
+                                        <Ionicons name="close-circle" size={18} color="#e53935" />
+                                    </TouchableOpacity>
+                                </View>
+                            )}
+
+                            {/* Restore offer button if removed */}
+                            {item.offerRemoved && !item.isCustomItem && (
+                                <TouchableOpacity
+                                    style={styles.restoreOfferButton}
+                                    onPress={() => restoreOfferToItem(item.book_id)}
+                                >
+                                    <Ionicons name="refresh" size={14} color="#2e7d32" />
+                                    <Text style={styles.restoreOfferText}>Restore Offer</Text>
+                                </TouchableOpacity>
+                            )}
                         </View>
 
                         <View style={styles.qtyContainer}>
@@ -632,7 +814,12 @@ export default function SalesScreen() {
                             </TouchableOpacity>
                         </View>
 
-                        <Text style={styles.itemTotal}>₹{item.price * item.quantity}</Text>
+                        <View style={{ alignItems: 'flex-end' }}>
+                            <Text style={styles.itemTotal}>₹{(item.price * item.quantity).toFixed(2)}</Text>
+                            {getItemDiscount(item) > 0 && (
+                                <Text style={styles.itemDiscountText}>-₹{getItemDiscount(item).toFixed(2)}</Text>
+                            )}
+                        </View>
 
                         <TouchableOpacity onPress={() => {
                             setCart(prev => prev.filter(i => i.book_id !== item.book_id));
@@ -642,10 +829,8 @@ export default function SalesScreen() {
                     </View>
                 )}
             />
-            {/* ... Footer ... */}
 
             <View style={styles.footer}>
-                {/* Notes Input */}
                 <TextInput
                     style={styles.notesInput}
                     placeholder="Add notes for this sale (optional)..."
@@ -655,7 +840,6 @@ export default function SalesScreen() {
                     numberOfLines={2}
                 />
 
-                {/* Custom Discount Input */}
                 <View style={styles.customDiscountRow}>
                     <Text style={styles.customDiscountLabel}>Special Discount (₹)</Text>
                     <TextInput
@@ -667,23 +851,18 @@ export default function SalesScreen() {
                     />
                 </View>
 
-                {/* Subtotal */}
                 <View style={styles.subtotalRow}>
                     <Text style={styles.subtotalLabel}>Subtotal</Text>
                     <Text style={styles.subtotalValue}>₹{getSubtotal().toFixed(2)}</Text>
                 </View>
 
-                {/* Offer Discount Row - only show if offer is active */}
-                {activeOffer && (
+                {getTotalOfferDiscount() > 0 && (
                     <View style={styles.discountRow}>
-                        <Text style={styles.discountLabel}>
-                            🎉 {activeOffer.name} ({activeOffer.discount_percentage}% off)
-                        </Text>
-                        <Text style={styles.discountValue}>-₹{getDiscountAmount().toFixed(2)}</Text>
+                        <Text style={styles.discountLabel}>🎉 Offer Discounts</Text>
+                        <Text style={styles.discountValue}>-₹{getTotalOfferDiscount().toFixed(2)}</Text>
                     </View>
                 )}
 
-                {/* Custom Discount Row - only show if custom discount is entered */}
                 {getCustomDiscountAmount() > 0 && (
                     <View style={styles.customDiscountDisplayRow}>
                         <Text style={styles.customDiscountDisplayLabel}>✨ Special Discount</Text>
@@ -691,7 +870,6 @@ export default function SalesScreen() {
                     </View>
                 )}
 
-                {/* Total */}
                 <View style={styles.totalRow}>
                     <Text style={styles.totalLabel}>Total</Text>
                     <Text style={styles.totalValue}>₹{getTotal().toFixed(2)}</Text>
@@ -699,12 +877,9 @@ export default function SalesScreen() {
 
                 <View style={styles.actionRow}>
                     <TouchableOpacity style={styles.scanButton} onPress={async () => {
-                        console.log('Scan Button Pressed');
                         const hasPermission = await checkPermission();
-                        console.log('Has Permission:', hasPermission);
                         if (hasPermission) {
                             setScanning(true);
-                            console.log('Scanning set to true');
                         }
                     }}>
                         <Ionicons name="scan" size={24} color="white" />
@@ -761,12 +936,13 @@ export default function SalesScreen() {
                             style={styles.completeSaleButton}
                             onPress={async () => {
                                 setGeneratingBill(true);
-                                const saved = await saveSaleToDatabase();
+                                const invoiceNum = await saveSaleToDatabase();
                                 setGeneratingBill(false);
 
-                                if (saved) {
+                                if (invoiceNum) {
+                                    setCurrentInvoiceNumber(invoiceNum);
                                     setSaleCompleted(true);
-                                    window.alert('Sale completed successfully! You can now print the receipt.');
+                                    window.alert(`Sale completed! Invoice #${invoiceNum}`);
                                 }
                             }}
                             disabled={generatingBill || saleCompleted}
@@ -774,23 +950,25 @@ export default function SalesScreen() {
                             {generatingBill ? <ActivityIndicator color="white" /> : (
                                 <>
                                     <Ionicons name="checkmark-circle" size={20} color="white" style={{ marginRight: 8 }} />
-                                    <Text style={styles.generateText}>{saleCompleted ? 'Sale Completed' : 'Complete Sale'}</Text>
+                                    <Text style={styles.generateText}>
+                                        {saleCompleted && currentInvoiceNumber ? `Invoice #${currentInvoiceNumber}` : 'Complete Sale'}
+                                    </Text>
                                 </>
                             )}
                         </TouchableOpacity>
 
-                        {/* Print Receipt Button - Shows after sale is completed */}
                         <TouchableOpacity
                             style={[styles.printButton, !saleCompleted && styles.disabledButton]}
                             onPress={async () => {
                                 await printReceipt();
-                                // After printing, close modal and reset
                                 setCheckoutVisible(false);
                                 setCart([]);
+                                await clearCartStorage();
                                 setCustomerPhone('');
                                 setSaleNotes('');
                                 setCustomDiscount('');
                                 setSaleCompleted(false);
+                                setCurrentInvoiceNumber(null);
                             }}
                             disabled={!saleCompleted || printing}
                         >
@@ -807,12 +985,13 @@ export default function SalesScreen() {
                             onPress={() => {
                                 setCheckoutVisible(false);
                                 if (saleCompleted) {
-                                    // If sale was completed, reset everything
                                     setCart([]);
+                                    clearCartStorage();
                                     setCustomerPhone('');
                                     setSaleNotes('');
                                     setCustomDiscount('');
                                     setSaleCompleted(false);
+                                    setCurrentInvoiceNumber(null);
                                 }
                             }}
                         >
@@ -886,6 +1065,52 @@ export default function SalesScreen() {
                 </View>
             </Modal>
 
+            {/* Custom Item Modal */}
+            <Modal visible={customItemVisible} animationType="slide" transparent>
+                <View style={styles.modalOverlay}>
+                    <View style={styles.modalContent}>
+                        <Text style={styles.modalTitle}>Add Custom Item</Text>
+                        <Text style={styles.customItemInfo}>
+                            Custom items are temporary and won't be saved to inventory.
+                        </Text>
+
+                        <TextInput
+                            style={styles.input}
+                            placeholder="Item Name"
+                            value={customItemName}
+                            onChangeText={setCustomItemName}
+                            autoFocus
+                        />
+
+                        <TextInput
+                            style={styles.input}
+                            placeholder="Price (₹)"
+                            value={customItemPrice}
+                            onChangeText={setCustomItemPrice}
+                            keyboardType="numeric"
+                        />
+
+                        <TouchableOpacity
+                            style={styles.completeSaleButton}
+                            onPress={addCustomItem}
+                        >
+                            <Ionicons name="add-circle" size={20} color="white" style={{ marginRight: 8 }} />
+                            <Text style={styles.generateText}>Add to Cart</Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                            style={styles.cancelButton}
+                            onPress={() => {
+                                setCustomItemVisible(false);
+                                setCustomItemName('');
+                                setCustomItemPrice('');
+                            }}
+                        >
+                            <Text style={styles.cancelText}>Cancel</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </Modal>
         </SafeAreaView>
     );
 }
@@ -955,6 +1180,49 @@ const styles = StyleSheet.create({
         fontSize: 16,
         fontWeight: 'bold',
         color: Colors.yss.text,
+    },
+    itemDiscountText: {
+        fontSize: 12,
+        color: '#2e7d32',
+        fontWeight: '500',
+    },
+    customBadge: {
+        backgroundColor: '#e3f2fd',
+        paddingHorizontal: 8,
+        paddingVertical: 2,
+        borderRadius: 10,
+    },
+    customBadgeText: {
+        fontSize: 10,
+        color: '#1976d2',
+        fontWeight: '600',
+    },
+    offerBadge: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#e8f5e9',
+        paddingHorizontal: 10,
+        paddingVertical: 5,
+        borderRadius: 8,
+        marginTop: 6,
+        gap: 8,
+    },
+    offerBadgeText: {
+        fontSize: 12,
+        color: '#2e7d32',
+        fontWeight: '500',
+        flex: 1,
+    },
+    restoreOfferButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginTop: 6,
+        gap: 4,
+    },
+    restoreOfferText: {
+        fontSize: 12,
+        color: '#2e7d32',
+        fontWeight: '500',
     },
     footer: {
         position: 'absolute',
@@ -1157,7 +1425,6 @@ const styles = StyleSheet.create({
         fontSize: 14,
         color: Colors.yss.text,
     },
-    // Scanner Styles
     cameraContainer: {
         flex: 1,
         backgroundColor: 'black',
@@ -1189,7 +1456,6 @@ const styles = StyleSheet.create({
         borderRadius: 20,
         backgroundColor: 'transparent',
     },
-    // Modal Styles
     modalOverlay: {
         flex: 1,
         backgroundColor: 'rgba(0,0,0,0.5)',
@@ -1218,7 +1484,7 @@ const styles = StyleSheet.create({
         fontSize: 16,
     },
     generateButton: {
-        backgroundColor: '#25D366', // WhatsApp Green
+        backgroundColor: '#25D366',
         padding: 16,
         borderRadius: 12,
         alignItems: 'center',
@@ -1257,5 +1523,11 @@ const styles = StyleSheet.create({
     cancelText: {
         color: '#666',
         fontSize: 16,
+    },
+    customItemInfo: {
+        fontSize: 13,
+        color: '#666',
+        marginBottom: 15,
+        fontStyle: 'italic',
     },
 });

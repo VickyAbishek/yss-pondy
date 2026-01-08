@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
-import { ActivityIndicator, Alert, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, Platform, ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '../../../constants/Colors';
 import { supabase } from '../../../lib/supabase';
@@ -19,6 +19,12 @@ export default function AddBookScreen() {
         language: '',
         thumbnail_url: '',
     });
+
+    // Product Offer State
+    const [showOfferSection, setShowOfferSection] = useState(false);
+    const [offerEnabled, setOfferEnabled] = useState(false);
+    const [offerName, setOfferName] = useState('');
+    const [offerDiscount, setOfferDiscount] = useState('');
 
     const [loadingBook, setLoadingBook] = useState(false);
 
@@ -183,9 +189,31 @@ export default function AddBookScreen() {
                 const { data, error } = await supabase
                     .from('books')
                     .insert(payload)
-                    .select();
+                    .select()
+                    .single();
 
                 if (error) throw error;
+
+                // If product offer is enabled, create book_offer entry
+                if (offerEnabled && offerName.trim() && data) {
+                    const discount = parseFloat(offerDiscount) || 0;
+                    if (discount > 0 && discount <= 100) {
+                        const { error: offerError } = await supabase
+                            .from('book_offers')
+                            .insert({
+                                book_id: data.id,
+                                offer_name: offerName.trim(),
+                                discount_percentage: discount,
+                                is_active: true
+                            });
+
+                        if (offerError) {
+                            console.error('Error creating book offer:', offerError);
+                            // Don't fail the whole operation, just log it
+                        }
+                    }
+                }
+
                 Alert.alert('Success', 'Book added successfully!');
             }
 
@@ -389,6 +417,61 @@ export default function AddBookScreen() {
                     </View>
                 </View>
 
+                {/* Product Offer Section */}
+                <TouchableOpacity
+                    style={styles.offerSectionHeader}
+                    onPress={() => setShowOfferSection(!showOfferSection)}
+                >
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                        <Ionicons name="pricetag-outline" size={20} color={Colors.yss.orange} />
+                        <Text style={styles.offerSectionTitle}>Product Offer (Optional)</Text>
+                    </View>
+                    <Ionicons
+                        name={showOfferSection ? 'chevron-up' : 'chevron-down'}
+                        size={20}
+                        color={Colors.yss.text}
+                    />
+                </TouchableOpacity>
+
+                {showOfferSection && (
+                    <View style={styles.offerSection}>
+                        <View style={styles.offerToggleRow}>
+                            <Text style={styles.offerToggleLabel}>Enable Product Offer</Text>
+                            <Switch
+                                value={offerEnabled}
+                                onValueChange={setOfferEnabled}
+                                trackColor={{ false: '#ddd', true: Colors.yss.orange }}
+                                thumbColor={offerEnabled ? Colors.yss.white : '#f4f3f4'}
+                            />
+                        </View>
+
+                        {offerEnabled && (
+                            <>
+                                <View style={styles.inputGroup}>
+                                    <Text style={styles.label}>Offer Name</Text>
+                                    <TextInput
+                                        style={styles.input}
+                                        value={offerName}
+                                        onChangeText={setOfferName}
+                                        placeholder="e.g., Special Edition Discount"
+                                    />
+                                </View>
+
+                                <View style={styles.inputGroup}>
+                                    <Text style={styles.label}>Discount (%)</Text>
+                                    <TextInput
+                                        style={styles.input}
+                                        value={offerDiscount}
+                                        onChangeText={setOfferDiscount}
+                                        placeholder="e.g., 15"
+                                        keyboardType="numeric"
+                                    />
+                                </View>
+                            </>
+                        )}
+                    </View>
+                )}
+
             </ScrollView>
 
             {/* Loading Overlay */}
@@ -529,5 +612,39 @@ const styles = StyleSheet.create({
         fontSize: 16,
         color: Colors.yss.text,
         fontWeight: '600',
+    },
+    // Product Offer Section Styles
+    offerSectionHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        backgroundColor: '#fff3e0',
+        padding: 15,
+        borderRadius: 12,
+        marginBottom: 10,
+    },
+    offerSectionTitle: {
+        fontSize: 16,
+        fontWeight: '600',
+        color: Colors.yss.text,
+    },
+    offerSection: {
+        backgroundColor: Colors.yss.white,
+        padding: 15,
+        borderRadius: 12,
+        marginBottom: 20,
+        borderWidth: 1,
+        borderColor: '#ffcc80',
+    },
+    offerToggleRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        marginBottom: 15,
+    },
+    offerToggleLabel: {
+        fontSize: 15,
+        fontWeight: '500',
+        color: Colors.yss.text,
     },
 });

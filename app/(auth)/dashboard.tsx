@@ -69,6 +69,7 @@ export default function Dashboard() {
         { label: 'Inventory', icon: 'list', route: '/(auth)/inventory' },
         { label: 'Sales History', icon: 'time-outline', route: '/(auth)/sales-history' },
         { label: 'Reports', icon: 'bar-chart', route: '/(auth)/reports' },
+        { label: 'Offers', icon: 'pricetag', route: '/(auth)/admin/offers' },
         { label: 'Users', icon: 'people', route: '/(auth)/admin/users' },
     ];
 

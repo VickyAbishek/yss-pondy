@@ -12,6 +12,7 @@ interface Sale {
     id: string;
     total_amount: number;
     discount_applied: number;
+    invoice_number: number | null;
     created_at: string;
     sold_by: string | null;
     notes: string | null;
@@ -103,7 +104,14 @@ export default function SalesHistoryScreen() {
                 .bold(true)
                 .line('YSS Pondy')
                 .bold(false)
-                .line('Yogoda Satsanga Society')
+                .line('Yogoda Satsanga Society');
+
+            // Add invoice number if available
+            if (sale.invoice_number) {
+                encoder.line(`Invoice #${sale.invoice_number}`);
+            }
+
+            encoder
                 .line('(REPRINT)')
                 .line('')
                 .align(ALIGN_LEFT)
@@ -170,6 +178,9 @@ export default function SalesHistoryScreen() {
             >
                 <View style={styles.saleHeader}>
                     <View style={styles.dateContainer}>
+                        {item.invoice_number && (
+                            <Text style={styles.invoiceNumber}>#{item.invoice_number}</Text>
+                        )}
                         <Ionicons name="calendar-outline" size={16} color={Colors.yss.orange} />
                         <Text style={styles.saleDate}>
                             {date.toLocaleDateString()} {date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -398,6 +409,12 @@ const styles = StyleSheet.create({
         fontSize: 14,
         color: Colors.yss.text,
         fontWeight: '500',
+    },
+    invoiceNumber: {
+        fontSize: 14,
+        color: Colors.yss.orange,
+        fontWeight: 'bold',
+        marginRight: 4,
     },
     saleAmount: {
         fontSize: 18,
