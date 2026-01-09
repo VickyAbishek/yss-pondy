@@ -5,10 +5,12 @@ import React, { useState } from 'react';
 import { ActivityIndicator, Alert, Platform, ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '../../../constants/Colors';
+import { useLanguage } from '../../../lib/language';
 import { supabase } from '../../../lib/supabase';
 
 export default function AddBookScreen() {
     const router = useRouter();
+    const { t } = useLanguage();
     const [saving, setSaving] = useState(false);
     const [form, setForm] = useState({
         isbn: '',
@@ -329,10 +331,10 @@ export default function AddBookScreen() {
                 <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
                     <Ionicons name="arrow-back" size={24} color={Colors.yss.text} />
                 </TouchableOpacity>
-                <Text style={styles.headerTitle}>Add New Book</Text>
+                <Text style={styles.headerTitle}>{t('addNewBook')}</Text>
                 <TouchableOpacity onPress={handleSave} disabled={saving} style={styles.saveButton}>
                     <Text style={[styles.saveText, { opacity: saving ? 0.5 : 1 }]}>
-                        {saving ? 'Saving...' : 'Save'}
+                        {saving ? t('loading') : t('save')}
                     </Text>
                 </TouchableOpacity>
             </View>
@@ -340,7 +342,7 @@ export default function AddBookScreen() {
             <ScrollView contentContainerStyle={styles.content}>
 
                 <View style={styles.inputGroup}>
-                    <Text style={styles.label}>ISBN / Barcode</Text>
+                    <Text style={styles.label}>{t('isbn')}</Text>
                     <View style={styles.row}>
                         <TextInput
                             style={[styles.input, { flex: 1 }]}
@@ -364,7 +366,7 @@ export default function AddBookScreen() {
                 </View>
 
                 <View style={styles.inputGroup}>
-                    <Text style={styles.label}>Book Title</Text>
+                    <Text style={styles.label}>{t('bookTitle')}</Text>
                     <TextInput
                         style={styles.input}
                         value={form.title}
@@ -375,7 +377,7 @@ export default function AddBookScreen() {
 
                 <View style={styles.row}>
                     <View style={[styles.inputGroup, { flex: 1, marginRight: 10 }]}>
-                        <Text style={styles.label}>Author</Text>
+                        <Text style={styles.label}>{t('author')}</Text>
                         <TextInput
                             style={styles.input}
                             value={form.author}
@@ -384,7 +386,7 @@ export default function AddBookScreen() {
                         />
                     </View>
                     <View style={[styles.inputGroup, { flex: 0.5 }]}>
-                        <Text style={styles.label}>Language</Text>
+                        <Text style={styles.label}>{t('language')}</Text>
                         <TextInput
                             style={styles.input}
                             value={form.language}
@@ -396,7 +398,7 @@ export default function AddBookScreen() {
 
                 <View style={styles.row}>
                     <View style={[styles.inputGroup, { flex: 1, marginRight: 10 }]}>
-                        <Text style={styles.label}>Price (₹)</Text>
+                        <Text style={styles.label}>{t('sellingPrice')} (₹)</Text>
                         <TextInput
                             style={styles.input}
                             value={form.price}
@@ -406,7 +408,7 @@ export default function AddBookScreen() {
                         />
                     </View>
                     <View style={[styles.inputGroup, { flex: 1 }]}>
-                        <Text style={styles.label}>Initial Stock</Text>
+                        <Text style={styles.label}>{t('initialStock')}</Text>
                         <TextInput
                             style={styles.input}
                             value={form.stock}
@@ -424,7 +426,7 @@ export default function AddBookScreen() {
                 >
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
                         <Ionicons name="pricetag-outline" size={20} color={Colors.yss.orange} />
-                        <Text style={styles.offerSectionTitle}>Product Offer (Optional)</Text>
+                        <Text style={styles.offerSectionTitle}>{t('offer')}</Text>
                     </View>
                     <Ionicons
                         name={showOfferSection ? 'chevron-up' : 'chevron-down'}
@@ -436,7 +438,7 @@ export default function AddBookScreen() {
                 {showOfferSection && (
                     <View style={styles.offerSection}>
                         <View style={styles.offerToggleRow}>
-                            <Text style={styles.offerToggleLabel}>Enable Product Offer</Text>
+                            <Text style={styles.offerToggleLabel}>{t('offer')}</Text>
                             <Switch
                                 value={offerEnabled}
                                 onValueChange={setOfferEnabled}
@@ -448,7 +450,7 @@ export default function AddBookScreen() {
                         {offerEnabled && (
                             <>
                                 <View style={styles.inputGroup}>
-                                    <Text style={styles.label}>Offer Name</Text>
+                                    <Text style={styles.label}>{t('offerName')}</Text>
                                     <TextInput
                                         style={styles.input}
                                         value={offerName}
@@ -458,7 +460,7 @@ export default function AddBookScreen() {
                                 </View>
 
                                 <View style={styles.inputGroup}>
-                                    <Text style={styles.label}>Discount (%)</Text>
+                                    <Text style={styles.label}>{t('discountPercentage')}</Text>
                                     <TextInput
                                         style={styles.input}
                                         value={offerDiscount}

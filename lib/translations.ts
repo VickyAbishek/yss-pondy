@@ -1,0 +1,247 @@
+// lib/translations.ts
+// English and Tamil translations for YSS Pondy app
+
+export type Language = 'en' | 'ta';
+
+export const translations = {
+    en: {
+        // Common
+        cancel: 'Cancel',
+        ok: 'OK',
+        save: 'Save',
+        delete: 'Delete',
+        edit: 'Edit',
+        search: 'Search',
+        loading: 'Loading...',
+        error: 'Error',
+        success: 'Success',
+        close: 'Close',
+        back: 'Back',
+        refresh: 'Refresh',
+        clear: 'Clear',
+        add: 'Add',
+        remove: 'Remove',
+
+        // Dashboard
+        dashboard: 'Dashboard',
+        welcomeBack: 'Welcome back',
+        todaySales: "Today's Sales",
+        thisMonth: 'This Month',
+        totalBooks: 'Total Books',
+        quickActions: 'Quick Actions',
+        newSale: 'New Sale',
+        inventory: 'Inventory',
+        salesHistory: 'Sales History',
+        reports: 'Reports',
+        offers: 'Offers',
+        settings: 'Settings',
+        logout: 'Logout',
+        users: 'Users',
+
+        // Sales Screen
+        newSaleTitle: 'New Sale',
+        cart: 'Cart',
+        cartEmpty: 'Cart is empty',
+        scanBooksToAdd: 'Scan books to add them here',
+        addItem: 'Add Item',
+        pay: 'Pay',
+        checkout: 'Checkout',
+        scanBarcode: 'Scan Barcode',
+        customItem: 'Custom Item',
+        quantity: 'Quantity',
+        price: 'Price',
+        total: 'Total',
+        subtotal: 'Subtotal',
+        discount: 'Discount',
+        youSave: 'You save',
+
+        // Checkout
+        completePayment: 'Complete Payment',
+        paymentMethod: 'Payment Method',
+        cash: 'Cash',
+        gpay: 'GPay',
+        addNotes: 'Add notes (optional)',
+        orderSummary: 'Order Summary',
+        completeSale: 'Complete Sale',
+        printReceipt: 'Print Receipt',
+        sendBillWhatsApp: 'Send Bill via WhatsApp',
+        enterWhatsAppNumber: 'Enter WhatsApp number',
+        send: 'Send',
+        saleCompleted: 'Sale completed!',
+        invoice: 'Invoice',
+
+        // Inventory
+        inventoryTitle: 'Inventory',
+        addBook: 'Add Book',
+        searchBooks: 'Search books...',
+        bookTitle: 'Book Title',
+        author: 'Author',
+        isbn: 'ISBN',
+        stock: 'Stock',
+        inStock: 'In Stock',
+        outOfStock: 'Out of Stock',
+        language: 'Language',
+
+        // Sales History
+        salesHistoryTitle: 'Sales History',
+        noSalesYet: 'No sales yet',
+        items: 'items',
+        offer: 'Offer',
+        deleteSale: 'Delete Sale',
+
+        // Settings
+        settingsTitle: 'Settings',
+        printerSettings: 'Printer Settings',
+        languageSettings: 'Language',
+        selectLanguage: 'Select Language',
+        english: 'English',
+        tamil: 'தமிழ்',
+
+        // Add Book
+        addNewBook: 'Add New Book',
+        scanISBN: 'Scan ISBN',
+        enterISBN: 'Enter ISBN',
+        lookupBook: 'Lookup Book',
+        bookDetails: 'Book Details',
+        publisher: 'Publisher',
+        publishedDate: 'Published Date',
+        description: 'Description',
+        costPrice: 'Cost Price',
+        sellingPrice: 'Selling Price',
+        initialStock: 'Initial Stock',
+        saveBook: 'Save Book',
+
+        // Offers
+        activeOffers: 'Active Offers',
+        createOffer: 'Create Offer',
+        offerName: 'Offer Name',
+        discountPercentage: 'Discount Percentage',
+
+        // Reports
+        reportsTitle: 'Reports',
+        todaysSalesReport: "Today's Sales Report",
+        inventoryReport: 'Inventory Report',
+        generateReport: 'Generate Report',
+    },
+    ta: {
+        // Common - பொதுவான
+        cancel: 'ரத்து',
+        ok: 'சரி',
+        save: 'சேமி',
+        delete: 'நீக்கு',
+        edit: 'திருத்து',
+        search: 'தேடு',
+        loading: 'ஏற்றுகிறது...',
+        error: 'பிழை',
+        success: 'வெற்றி',
+        close: 'மூடு',
+        back: 'பின்செல்',
+        refresh: 'புதுப்பி',
+        clear: 'அழி',
+        add: 'சேர்',
+        remove: 'நீக்கு',
+
+        // Dashboard - முகப்பு
+        dashboard: 'முகப்பு',
+        welcomeBack: 'வணக்கம்',
+        todaySales: 'இன்றைய விற்பனை',
+        thisMonth: 'இந்த மாதம்',
+        totalBooks: 'மொத்த புத்தகங்கள்',
+        quickActions: 'விரைவு செயல்கள்',
+        newSale: 'புதிய விற்பனை',
+        inventory: 'சரக்கு',
+        salesHistory: 'விற்பனை வரலாறு',
+        reports: 'அறிக்கைகள்',
+        offers: 'சலுகைகள்',
+        settings: 'அமைப்புகள்',
+        logout: 'வெளியேறு',
+        users: 'பயனர்கள்',
+
+        // Sales Screen - விற்பனை
+        newSaleTitle: 'புதிய விற்பனை',
+        cart: 'கூடை',
+        cartEmpty: 'கூடை காலியாக உள்ளது',
+        scanBooksToAdd: 'புத்தகங்களை ஸ்கேன் செய்யவும்',
+        addItem: 'பொருள் சேர்',
+        pay: 'பணம் செலுத்து',
+        checkout: 'செலுத்து',
+        scanBarcode: 'பார்கோடு ஸ்கேன்',
+        customItem: 'தனிப் பொருள்',
+        quantity: 'எண்ணிக்கை',
+        price: 'விலை',
+        total: 'மொத்தம்',
+        subtotal: 'உப மொத்தம்',
+        discount: 'தள்ளுபடி',
+        youSave: 'நீங்கள் சேமிப்பது',
+
+        // Checkout - செலுத்துதல்
+        completePayment: 'பணம் செலுத்து',
+        paymentMethod: 'பணம் செலுத்தும் முறை',
+        cash: 'ரொக்கம்',
+        gpay: 'ஜிபே',
+        addNotes: 'குறிப்பு சேர் (விரும்பினால்)',
+        orderSummary: 'ஆர்டர் சுருக்கம்',
+        completeSale: 'விற்பனை முடி',
+        printReceipt: 'ரசீது அச்சிடு',
+        sendBillWhatsApp: 'வாட்ஸ்அப்பில் ரசீது அனுப்பு',
+        enterWhatsAppNumber: 'வாட்ஸ்அப் எண் உள்ளிடு',
+        send: 'அனுப்பு',
+        saleCompleted: 'விற்பனை முடிந்தது!',
+        invoice: 'பில் எண்',
+
+        // Inventory - சரக்கு
+        inventoryTitle: 'சரக்கு',
+        addBook: 'புத்தகம் சேர்',
+        searchBooks: 'புத்தகங்களை தேடு...',
+        bookTitle: 'புத்தக பெயர்',
+        author: 'எழுத்தாளர்',
+        isbn: 'ஐஎஸ்பிஎன்',
+        stock: 'இருப்பு',
+        inStock: 'இருப்பில் உள்ளது',
+        outOfStock: 'இருப்பில் இல்லை',
+        language: 'மொழி',
+
+        // Sales History - விற்பனை வரலாறு
+        salesHistoryTitle: 'விற்பனை வரலாறு',
+        noSalesYet: 'விற்பனை இல்லை',
+        items: 'பொருட்கள்',
+        offer: 'சலுகை',
+        deleteSale: 'விற்பனை நீக்கு',
+
+        // Settings - அமைப்புகள்
+        settingsTitle: 'அமைப்புகள்',
+        printerSettings: 'பிரிண்டர் அமைப்புகள்',
+        languageSettings: 'மொழி',
+        selectLanguage: 'மொழி தேர்வு',
+        english: 'English',
+        tamil: 'தமிழ்',
+
+        // Add Book - புத்தகம் சேர்
+        addNewBook: 'புதிய புத்தகம் சேர்',
+        scanISBN: 'ஐஎஸ்பிஎன் ஸ்கேன்',
+        enterISBN: 'ஐஎஸ்பிஎன் உள்ளிடு',
+        lookupBook: 'புத்தகம் தேடு',
+        bookDetails: 'புத்தக விவரங்கள்',
+        publisher: 'பதிப்பகம்',
+        publishedDate: 'வெளியான தேதி',
+        description: 'விளக்கம்',
+        costPrice: 'வாங்கிய விலை',
+        sellingPrice: 'விற்கும் விலை',
+        initialStock: 'ஆரம்ப இருப்பு',
+        saveBook: 'புத்தகம் சேமி',
+
+        // Offers - சலுகைகள்
+        activeOffers: 'செயலில் உள்ள சலுகைகள்',
+        createOffer: 'சலுகை உருவாக்கு',
+        offerName: 'சலுகை பெயர்',
+        discountPercentage: 'தள்ளுபடி சதவீதம்',
+
+        // Reports - அறிக்கைகள்
+        reportsTitle: 'அறிக்கைகள்',
+        todaysSalesReport: 'இன்றைய விற்பனை அறிக்கை',
+        inventoryReport: 'சரக்கு அறிக்கை',
+        generateReport: 'அறிக்கை உருவாக்கு',
+    }
+};
+
+export type TranslationKey = keyof typeof translations.en;

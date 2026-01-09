@@ -4,6 +4,7 @@ import { StatusBar } from 'expo-status-bar';
 import 'react-native-reanimated';
 import { Colors } from '../constants/Colors';
 import { AuthProvider } from '../lib/auth';
+import { LanguageProvider } from '../lib/language';
 
 export {
   // Catch any errors thrown by the Layout component.
@@ -17,9 +18,11 @@ export const unstable_settings = {
 
 export default function RootLayout() {
   return (
-    <AuthProvider>
-      <RootLayoutNav />
-    </AuthProvider>
+    <LanguageProvider>
+      <AuthProvider>
+        <RootLayoutNav />
+      </AuthProvider>
+    </LanguageProvider>
   );
 }
 

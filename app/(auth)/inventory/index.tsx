@@ -4,6 +4,7 @@ import React, { useCallback, useState } from 'react';
 import { FlatList, Image, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '../../../constants/Colors';
+import { useLanguage } from '../../../lib/language';
 import { supabase } from '../../../lib/supabase';
 
 // Book Type
@@ -25,6 +26,7 @@ const DEFAULT_THUMBNAIL = 'https://via.placeholder.com/150x200.png?text=YSS+Book
 
 export default function InventoryScreen() {
     const router = useRouter();
+    const { t } = useLanguage();
     const [searchQuery, setSearchQuery] = useState('');
     const [books, setBooks] = useState<Book[]>([]);
     const [loading, setLoading] = useState(true);
@@ -87,7 +89,7 @@ export default function InventoryScreen() {
                 <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
                     <Ionicons name="arrow-back" size={24} color={Colors.yss.text} />
                 </TouchableOpacity>
-                <Text style={styles.headerTitle}>Inventory</Text>
+                <Text style={styles.headerTitle}>{t('inventoryTitle')}</Text>
                 <View style={{ width: 24 }} />
             </View>
 

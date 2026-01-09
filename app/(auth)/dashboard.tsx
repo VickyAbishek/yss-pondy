@@ -5,10 +5,12 @@ import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-nati
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '../../constants/Colors';
 import { useAuth } from '../../lib/auth';
+import { useLanguage } from '../../lib/language';
 import { supabase } from '../../lib/supabase';
 
 export default function Dashboard() {
     const { user, session } = useAuth();
+    const { t } = useLanguage();
     const router = useRouter();
 
     // Stats from database
@@ -60,17 +62,17 @@ export default function Dashboard() {
     }, []);
 
     const stats = [
-        { label: 'Books in Stock', value: booksCount.toLocaleString(), icon: 'book' },
-        { label: 'Today Sales', value: todaySalesCount.toString(), icon: 'basket' },
+        { label: t('totalBooks'), value: booksCount.toLocaleString(), icon: 'book' },
+        { label: t('todaySales'), value: todaySalesCount.toString(), icon: 'basket' },
     ];
 
     const actions = [
-        { label: 'New Sale', icon: 'add-circle', route: '/(auth)/sales' },
-        { label: 'Inventory', icon: 'list', route: '/(auth)/inventory' },
-        { label: 'Sales History', icon: 'time-outline', route: '/(auth)/sales-history' },
-        { label: 'Reports', icon: 'bar-chart', route: '/(auth)/reports' },
-        { label: 'Offers', icon: 'pricetag', route: '/(auth)/admin/offers' },
-        { label: 'Users', icon: 'people', route: '/(auth)/admin/users' },
+        { label: t('newSale'), icon: 'add-circle', route: '/(auth)/sales' },
+        { label: t('inventory'), icon: 'list', route: '/(auth)/inventory' },
+        { label: t('salesHistory'), icon: 'time-outline', route: '/(auth)/sales-history' },
+        { label: t('reports'), icon: 'bar-chart', route: '/(auth)/reports' },
+        { label: t('offers'), icon: 'pricetag', route: '/(auth)/admin/offers' },
+        { label: t('users'), icon: 'people', route: '/(auth)/admin/users' },
     ];
 
     return (
@@ -108,6 +110,16 @@ export default function Dashboard() {
                         </TouchableOpacity>
                         <TouchableOpacity
                             style={styles.dropdownItem}
+                            onPress={() => {
+                                setDropdownVisible(false);
+                                router.push('/(auth)/settings/language' as any);
+                            }}
+                        >
+                            <Ionicons name="language-outline" size={20} color={Colors.yss.text} />
+                            <Text style={styles.dropdownItemText}>Language</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                            style={styles.dropdownItem}
                             onPress={async () => {
                                 setDropdownVisible(false);
                                 await supabase.auth.signOut();
@@ -142,7 +154,7 @@ export default function Dashboard() {
                     </View>
 
                     {/* Actions Grid */}
-                    <Text style={styles.sectionTitle}>Quick Actions</Text>
+                    <Text style={styles.sectionTitle}>{t('quickActions')}</Text>
                     <View style={styles.grid}>
                         {actions.map((action, index) => (
                             <TouchableOpacity

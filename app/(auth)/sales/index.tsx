@@ -21,6 +21,7 @@ import { Colors } from '../../../constants/Colors';
 import { useAuth } from '../../../lib/auth';
 import { isPrinterConnected, print } from '../../../lib/bluetooth-printer';
 import { ALIGN_CENTER, ALIGN_LEFT, CHARS_PER_LINE, EscPosEncoder, formatCurrency, truncateText } from '../../../lib/escpos';
+import { useLanguage } from '../../../lib/language';
 import { supabase } from '../../../lib/supabase';
 
 const CART_STORAGE_KEY = 'yss_pondy_cart';
@@ -59,6 +60,7 @@ interface BookOffer {
 export default function SalesScreen() {
     const router = useRouter();
     const { user } = useAuth();
+    const { t } = useLanguage();
     const [cart, setCart] = useState<CartItem[]>([]);
     const [scanning, setScanning] = useState(false);
     const [torch, setTorch] = useState(false);
@@ -760,13 +762,13 @@ export default function SalesScreen() {
                 <TouchableOpacity onPress={() => router.back()}>
                     <Ionicons name="arrow-back" size={24} color={Colors.yss.text} />
                 </TouchableOpacity>
-                <Text style={styles.headerTitle}>New Sale</Text>
+                <Text style={styles.headerTitle}>{t('newSaleTitle')}</Text>
                 <TouchableOpacity onPress={() => {
                     if (cart.length > 0 && window.confirm('Clear all items from cart?')) {
                         setCart([]);
                     }
                 }}>
-                    <Text style={[styles.clearText, cart.length === 0 && { opacity: 0.3 }]}>Clear</Text>
+                    <Text style={[styles.clearText, cart.length === 0 && { opacity: 0.3 }]}>{t('clear')}</Text>
                 </TouchableOpacity>
             </View>
 
@@ -854,7 +856,7 @@ export default function SalesScreen() {
                 {/* Savings and Total Row */}
                 <View style={styles.savingsRow}>
                     {getTotalOfferDiscount() > 0 && (
-                        <Text style={styles.savingsText}>🎉 You save ₹{getTotalOfferDiscount().toFixed(0)}</Text>
+                        <Text style={styles.savingsText}>🎉 {t('youSave')} ₹{getTotalOfferDiscount().toFixed(0)}</Text>
                     )}
                     <View style={styles.totalDisplay}>
                         <Text style={styles.totalAmount}>₹{getTotal().toFixed(0)}</Text>
@@ -868,7 +870,7 @@ export default function SalesScreen() {
                         onPress={() => setAddItemModalVisible(true)}
                     >
                         <Ionicons name="add" size={22} color={Colors.yss.orange} />
-                        <Text style={styles.addItemButtonText}>Add Item</Text>
+                        <Text style={styles.addItemButtonText}>{t('addItem')}</Text>
                     </TouchableOpacity>
 
                     <TouchableOpacity
@@ -877,7 +879,7 @@ export default function SalesScreen() {
                         disabled={cart.length === 0}
                     >
                         <Ionicons name="checkmark" size={22} color="white" />
-                        <Text style={styles.payButtonText}>Pay ₹{getTotal().toFixed(0)}</Text>
+                        <Text style={styles.payButtonText}>{t('pay')} ₹{getTotal().toFixed(0)}</Text>
                     </TouchableOpacity>
                 </View>
             </View>
@@ -887,7 +889,7 @@ export default function SalesScreen() {
                 <View style={styles.modalOverlay}>
                     <View style={styles.addItemModalContent}>
                         <View style={styles.addItemModalHeader}>
-                            <Text style={styles.addItemModalTitle}>Add Item</Text>
+                            <Text style={styles.addItemModalTitle}>{t('addItem')}</Text>
                             <TouchableOpacity onPress={() => setAddItemModalVisible(false)}>
                                 <Ionicons name="close" size={28} color={Colors.yss.text} />
                             </TouchableOpacity>
@@ -907,7 +909,7 @@ export default function SalesScreen() {
                                 <View style={styles.addItemIconBox}>
                                     <Ionicons name="scan-outline" size={32} color={Colors.yss.orange} />
                                 </View>
-                                <Text style={styles.addItemOptionText}>Scan Barcode</Text>
+                                <Text style={styles.addItemOptionText}>{t('scanBarcode')}</Text>
                             </TouchableOpacity>
 
                             <TouchableOpacity
@@ -920,7 +922,7 @@ export default function SalesScreen() {
                                 <View style={styles.addItemIconBox}>
                                     <Ionicons name="search-outline" size={32} color={Colors.yss.orange} />
                                 </View>
-                                <Text style={styles.addItemOptionText}>Search</Text>
+                                <Text style={styles.addItemOptionText}>{t('search')}</Text>
                             </TouchableOpacity>
 
                             <TouchableOpacity
@@ -933,7 +935,7 @@ export default function SalesScreen() {
                                 <View style={styles.addItemIconBox}>
                                     <Ionicons name="create-outline" size={32} color={Colors.yss.orange} />
                                 </View>
-                                <Text style={styles.addItemOptionText}>Custom Item</Text>
+                                <Text style={styles.addItemOptionText}>{t('customItem')}</Text>
                             </TouchableOpacity>
                         </View>
                     </View>
@@ -945,7 +947,7 @@ export default function SalesScreen() {
                 <View style={styles.modalOverlay}>
                     <View style={styles.checkoutModalContent}>
                         <View style={styles.checkoutModalHeader}>
-                            <Text style={styles.checkoutModalTitle}>Complete Payment</Text>
+                            <Text style={styles.checkoutModalTitle}>{t('completePayment')}</Text>
                             <TouchableOpacity onPress={() => {
                                 setCheckoutVisible(false);
                                 if (saleCompleted) {
@@ -964,21 +966,21 @@ export default function SalesScreen() {
 
                         {/* Payment Method Toggle */}
                         <View style={styles.paymentSection}>
-                            <Text style={styles.paymentSectionLabel}>Payment Method</Text>
+                            <Text style={styles.paymentSectionLabel}>{t('paymentMethod')}</Text>
                             <View style={styles.paymentToggleNew}>
                                 <TouchableOpacity
                                     style={[styles.paymentOptionNew, paymentMethod === 'cash' && styles.paymentOptionNewActive]}
                                     onPress={() => setPaymentMethod('cash')}
                                 >
                                     <Ionicons name="cash-outline" size={20} color={paymentMethod === 'cash' ? 'white' : Colors.yss.text} />
-                                    <Text style={[styles.paymentOptionNewText, paymentMethod === 'cash' && styles.paymentOptionNewTextActive]}>Cash</Text>
+                                    <Text style={[styles.paymentOptionNewText, paymentMethod === 'cash' && styles.paymentOptionNewTextActive]}>{t('cash')}</Text>
                                 </TouchableOpacity>
                                 <TouchableOpacity
                                     style={[styles.paymentOptionNew, paymentMethod === 'gpay' && styles.paymentOptionNewActive]}
                                     onPress={() => setPaymentMethod('gpay')}
                                 >
                                     <Ionicons name="phone-portrait-outline" size={20} color={paymentMethod === 'gpay' ? 'white' : Colors.yss.text} />
-                                    <Text style={[styles.paymentOptionNewText, paymentMethod === 'gpay' && styles.paymentOptionNewTextActive]}>GPay</Text>
+                                    <Text style={[styles.paymentOptionNewText, paymentMethod === 'gpay' && styles.paymentOptionNewTextActive]}>{t('gpay')}</Text>
                                 </TouchableOpacity>
                             </View>
                         </View>
@@ -1005,20 +1007,20 @@ export default function SalesScreen() {
 
                         {/* Order Summary */}
                         <View style={styles.orderSummary}>
-                            <Text style={styles.orderSummaryTitle}>Order Summary</Text>
+                            <Text style={styles.orderSummaryTitle}>{t('orderSummary')}</Text>
                             <View style={styles.summaryRow}>
-                                <Text style={styles.summaryLabel}>Subtotal</Text>
+                                <Text style={styles.summaryLabel}>{t('subtotal')}</Text>
                                 <Text style={styles.summaryValue}>₹{getSubtotal().toFixed(0)}</Text>
                             </View>
                             {getTotalOfferDiscount() > 0 && (
                                 <View style={styles.summaryRow}>
-                                    <Text style={styles.summaryLabelGreen}>🎉 You save</Text>
+                                    <Text style={styles.summaryLabelGreen}>🎉 {t('youSave')}</Text>
                                     <Text style={styles.summaryValueGreen}>-₹{getTotalOfferDiscount().toFixed(0)}</Text>
                                 </View>
                             )}
                             <View style={styles.summaryDivider} />
                             <View style={styles.summaryRow}>
-                                <Text style={styles.summaryTotalLabel}>Total</Text>
+                                <Text style={styles.summaryTotalLabel}>{t('total')}</Text>
                                 <Text style={styles.summaryTotalValue}>₹{getTotal().toFixed(0)}</Text>
                             </View>
                         </View>
@@ -1096,7 +1098,7 @@ export default function SalesScreen() {
                                 {generatingBill ? <ActivityIndicator color="white" /> : (
                                     <>
                                         <Ionicons name="checkmark" size={22} color="white" />
-                                        <Text style={styles.completeSaleButtonText}>Complete Sale</Text>
+                                        <Text style={styles.completeSaleButtonText}>{t('completeSale')}</Text>
                                     </>
                                 )}
                             </TouchableOpacity>
@@ -1209,7 +1211,7 @@ export default function SalesScreen() {
             <Modal visible={customItemVisible} animationType="slide" transparent>
                 <View style={styles.modalOverlay}>
                     <View style={styles.modalContent}>
-                        <Text style={styles.modalTitle}>Add Custom Item</Text>
+                        <Text style={styles.modalTitle}>{t('customItem')}</Text>
                         <Text style={styles.customItemInfo}>
                             Custom items are temporary and won't be saved to inventory.
                         </Text>
@@ -1235,7 +1237,7 @@ export default function SalesScreen() {
                             onPress={addCustomItem}
                         >
                             <Ionicons name="add-circle" size={20} color="white" style={{ marginRight: 8 }} />
-                            <Text style={styles.generateText}>Add to Cart</Text>
+                            <Text style={styles.generateText}>{t('add')}</Text>
                         </TouchableOpacity>
 
                         <TouchableOpacity
@@ -1246,7 +1248,7 @@ export default function SalesScreen() {
                                 setCustomItemPrice('');
                             }}
                         >
-                            <Text style={styles.cancelText}>Cancel</Text>
+                            <Text style={styles.cancelText}>{t('cancel')}</Text>
                         </TouchableOpacity>
                     </View>
                 </View>

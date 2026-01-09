@@ -3,14 +3,16 @@ import { usePathname, useRouter } from 'expo-router';
 import React from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Colors } from '../../constants/Colors';
+import { useLanguage } from '../../lib/language';
 
 export function BottomNavigation() {
     const router = useRouter();
     const pathname = usePathname();
+    const { t } = useLanguage();
 
     const isInventory = pathname.startsWith('/inventory');
     const fabAction = isInventory ? '/inventory/add' : '/sales';
-    const fabLabel = isInventory ? 'Add Book' : 'New Sale';
+    const fabLabel = isInventory ? t('addBook') : t('newSale');
 
     const isActive = (route: string) => pathname === route;
 
@@ -30,7 +32,7 @@ export function BottomNavigation() {
                         styles.navText,
                         { color: isActive('/(auth)/dashboard') ? Colors.yss.orange : Colors.yss.text }
                     ]}>
-                        Home
+                        {t('dashboard')}
                     </Text>
                 </TouchableOpacity>
 
@@ -50,7 +52,7 @@ export function BottomNavigation() {
                         styles.navText,
                         { color: isActive('/(auth)/inventory') ? Colors.yss.orange : Colors.yss.text }
                     ]}>
-                        Inventory
+                        {t('inventory')}
                     </Text>
                 </TouchableOpacity>
             </View>
