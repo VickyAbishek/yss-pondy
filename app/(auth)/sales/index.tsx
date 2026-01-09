@@ -95,6 +95,9 @@ export default function SalesScreen() {
     // Add Item Modal State (unified modal for scan/search/custom)
     const [addItemModalVisible, setAddItemModalVisible] = useState(false);
 
+    // WhatsApp Popup State
+    const [whatsappPopupVisible, setWhatsappPopupVisible] = useState(false);
+
     // Web Scanner Ref
     const scannerRef = useRef<any>(null);
     const lastScannedCode = useRef<string | null>(null);
@@ -1025,7 +1028,7 @@ export default function SalesScreen() {
                             {/* WhatsApp Icon Button */}
                             <TouchableOpacity
                                 style={styles.whatsappIconButton}
-                                onPress={shareBillToWhatsApp}
+                                onPress={() => setWhatsappPopupVisible(true)}
                                 disabled={generatingBill}
                             >
                                 {generatingBill ? <ActivityIndicator color="white" size="small" /> : (
@@ -1096,6 +1099,42 @@ export default function SalesScreen() {
                                         <Text style={styles.completeSaleButtonText}>Complete Sale</Text>
                                     </>
                                 )}
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                </View>
+            </Modal>
+
+            {/* WhatsApp Phone Popup */}
+            <Modal visible={whatsappPopupVisible} animationType="fade" transparent>
+                <View style={styles.modalOverlay}>
+                    <View style={styles.whatsappPopupContent}>
+                        <Text style={styles.whatsappPopupTitle}>Send Bill via WhatsApp</Text>
+                        <TextInput
+                            style={styles.whatsappPhoneInput}
+                            placeholder="Enter WhatsApp number"
+                            value={customerPhone}
+                            onChangeText={setCustomerPhone}
+                            keyboardType="phone-pad"
+                            autoFocus
+                        />
+                        <View style={styles.whatsappPopupButtons}>
+                            <TouchableOpacity
+                                style={styles.whatsappPopupCancel}
+                                onPress={() => setWhatsappPopupVisible(false)}
+                            >
+                                <Text style={styles.whatsappPopupCancelText}>Cancel</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                style={[styles.whatsappPopupSend, !customerPhone && styles.disabledButton]}
+                                onPress={() => {
+                                    setWhatsappPopupVisible(false);
+                                    shareBillToWhatsApp();
+                                }}
+                                disabled={!customerPhone}
+                            >
+                                <Ionicons name="send" size={18} color="white" />
+                                <Text style={styles.whatsappPopupSendText}>Send</Text>
                             </TouchableOpacity>
                         </View>
                     </View>
@@ -2136,5 +2175,72 @@ const styles = StyleSheet.create({
         fontSize: 16,
         fontWeight: '600',
         color: 'white',
+    },
+    phoneInputSection: {
+        marginBottom: 12,
+    },
+    phoneInput: {
+        backgroundColor: '#f5f5f5',
+        borderRadius: 10,
+        padding: 14,
+        fontSize: 16,
+        marginTop: 8,
+    },
+    whatsappPopupContent: {
+        backgroundColor: 'white',
+        borderRadius: 16,
+        padding: 24,
+        marginHorizontal: 30,
+        marginTop: '40%',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.2,
+        shadowRadius: 10,
+        elevation: 10,
+    },
+    whatsappPopupTitle: {
+        fontSize: 18,
+        fontWeight: 'bold',
+        color: Colors.yss.text,
+        textAlign: 'center',
+        marginBottom: 16,
+    },
+    whatsappPhoneInput: {
+        backgroundColor: '#f5f5f5',
+        borderRadius: 10,
+        padding: 14,
+        fontSize: 16,
+        marginBottom: 20,
+    },
+    whatsappPopupButtons: {
+        flexDirection: 'row',
+        gap: 12,
+    },
+    whatsappPopupCancel: {
+        flex: 1,
+        paddingVertical: 14,
+        borderRadius: 10,
+        backgroundColor: '#f5f5f5',
+        alignItems: 'center',
+    },
+    whatsappPopupCancelText: {
+        fontSize: 16,
+        color: Colors.yss.text,
+        fontWeight: '500',
+    },
+    whatsappPopupSend: {
+        flex: 1,
+        flexDirection: 'row',
+        paddingVertical: 14,
+        borderRadius: 10,
+        backgroundColor: '#25D366',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 8,
+    },
+    whatsappPopupSendText: {
+        fontSize: 16,
+        color: 'white',
+        fontWeight: '600',
     },
 });

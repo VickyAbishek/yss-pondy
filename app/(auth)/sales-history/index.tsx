@@ -28,6 +28,7 @@ interface Sale {
             isbn: string;
         };
     }[];
+    payment_method?: string;
 }
 
 export default function SalesHistoryScreen() {
@@ -284,6 +285,18 @@ export default function SalesHistoryScreen() {
                         <Text style={styles.discountText}>Offer: -₹{item.discount_applied.toFixed(2)}</Text>
                     </View>
                 )}
+
+                {/* Payment Method Badge */}
+                <View style={[styles.paymentBadge, item.payment_method === 'gpay' && styles.paymentBadgeGpay]}>
+                    <Ionicons
+                        name={item.payment_method === 'gpay' ? 'phone-portrait-outline' : 'cash-outline'}
+                        size={14}
+                        color={item.payment_method === 'gpay' ? '#1976d2' : '#2e7d32'}
+                    />
+                    <Text style={[styles.paymentBadgeText, item.payment_method === 'gpay' && styles.paymentBadgeTextGpay]}>
+                        {item.payment_method === 'gpay' ? 'GPay' : 'Cash'}
+                    </Text>
+                </View>
             </TouchableOpacity>
         );
     };
@@ -682,5 +695,27 @@ const styles = StyleSheet.create({
         color: 'white',
         fontSize: 16,
         fontWeight: '600',
+    },
+    paymentBadge: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+        backgroundColor: '#e8f5e9',
+        paddingHorizontal: 10,
+        paddingVertical: 4,
+        borderRadius: 12,
+        alignSelf: 'flex-start',
+        marginTop: 8,
+    },
+    paymentBadgeGpay: {
+        backgroundColor: '#e3f2fd',
+    },
+    paymentBadgeText: {
+        fontSize: 12,
+        fontWeight: '600',
+        color: '#2e7d32',
+    },
+    paymentBadgeTextGpay: {
+        color: '#1976d2',
     },
 });
