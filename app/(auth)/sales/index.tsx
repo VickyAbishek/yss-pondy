@@ -672,7 +672,7 @@ export default function SalesScreen() {
             const { data, error } = await supabase
                 .from('books')
                 .select('*')
-                .or(`title.ilike.%${query}%,author.ilike.%${query}%,isbn.ilike.%${query}%`)
+                .or(`title.ilike.%${query}%,product_id.ilike.%${query}%,serial.ilike.%${query}%,isbn.ilike.%${query}%`)
                 .limit(20);
 
             if (data && !error) {

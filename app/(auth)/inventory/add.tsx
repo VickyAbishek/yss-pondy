@@ -20,6 +20,10 @@ export default function AddBookScreen() {
         stock: '',
         language: '',
         thumbnail_url: '',
+        serial: '',
+        product_id: '',
+        weight: '',
+        category: '',
     });
 
     // Product Offer State
@@ -184,6 +188,10 @@ export default function AddBookScreen() {
                     language: form.language,
                     type: 'Paperback',
                     thumbnail_url: form.thumbnail_url || null,
+                    serial: form.serial || null,
+                    product_id: form.product_id || null,
+                    weight: parseInt(form.weight) || null,
+                    category: form.category || null,
                 };
 
                 console.log('Payload:', payload);
@@ -377,21 +385,63 @@ export default function AddBookScreen() {
 
                 <View style={styles.row}>
                     <View style={[styles.inputGroup, { flex: 1, marginRight: 10 }]}>
-                        <Text style={styles.label}>{t('author')}</Text>
+                        <Text style={styles.label}>{t('productId')}</Text>
                         <TextInput
                             style={styles.input}
-                            value={form.author}
-                            onChangeText={t => setForm(prev => ({ ...prev, author: t }))}
-                            placeholder="Author Name"
+                            value={form.product_id}
+                            onChangeText={t => setForm(prev => ({ ...prev, product_id: t }))}
+                            placeholder="AYCE"
                         />
                     </View>
-                    <View style={[styles.inputGroup, { flex: 0.5 }]}>
+                    <View style={[styles.inputGroup, { flex: 1 }]}>
+                        <Text style={styles.label}>{t('serial')}</Text>
+                        <TextInput
+                            style={styles.input}
+                            value={form.serial}
+                            onChangeText={t => setForm(prev => ({ ...prev, serial: t }))}
+                            placeholder="9030"
+                            keyboardType="numeric"
+                        />
+                    </View>
+                </View>
+
+                <View style={[styles.inputGroup]}>
+                    <Text style={styles.label}>{t('author')}</Text>
+                    <TextInput
+                        style={styles.input}
+                        value={form.author}
+                        onChangeText={t => setForm(prev => ({ ...prev, author: t }))}
+                        placeholder="Author Name"
+                    />
+                </View>
+
+                <View style={styles.row}>
+                    <View style={[styles.inputGroup, { flex: 1, marginRight: 10 }]}>
                         <Text style={styles.label}>{t('language')}</Text>
                         <TextInput
                             style={styles.input}
                             value={form.language}
                             onChangeText={t => setForm(prev => ({ ...prev, language: t }))}
-                            placeholder="en"
+                            placeholder="English"
+                        />
+                    </View>
+                    <View style={[styles.inputGroup, { flex: 1, marginRight: 10 }]}>
+                        <Text style={styles.label}>{t('category')}</Text>
+                        <TextInput
+                            style={styles.input}
+                            value={form.category}
+                            onChangeText={t => setForm(prev => ({ ...prev, category: t }))}
+                            placeholder="BK"
+                        />
+                    </View>
+                    <View style={[styles.inputGroup, { flex: 1 }]}>
+                        <Text style={styles.label}>{t('weight')}</Text>
+                        <TextInput
+                            style={styles.input}
+                            value={form.weight}
+                            onChangeText={t => setForm(prev => ({ ...prev, weight: t }))}
+                            placeholder="500"
+                            keyboardType="numeric"
                         />
                     </View>
                 </View>

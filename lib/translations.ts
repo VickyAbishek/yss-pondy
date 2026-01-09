@@ -21,6 +21,7 @@ export const translations = {
         clear: 'Clear',
         add: 'Add',
         remove: 'Remove',
+        all: 'All',
 
         // Dashboard
         dashboard: 'Dashboard',
@@ -81,6 +82,10 @@ export const translations = {
         inStock: 'In Stock',
         outOfStock: 'Out of Stock',
         language: 'Language',
+        serial: 'Serial Number',
+        productId: 'Product ID',
+        weight: 'Weight (g)',
+        category: 'Category',
 
         // Sales History
         salesHistoryTitle: 'Sales History',
@@ -140,6 +145,7 @@ export const translations = {
         clear: 'அழி',
         add: 'சேர்',
         remove: 'நீக்கு',
+        all: 'அனைத்தும்',
 
         // Dashboard - முகப்பு
         dashboard: 'முகப்பு',
@@ -200,6 +206,10 @@ export const translations = {
         inStock: 'இருப்பில் உள்ளது',
         outOfStock: 'இருப்பில் இல்லை',
         language: 'மொழி',
+        serial: 'வரிசை எண்',
+        productId: 'தயாரிப்பு ஐடி',
+        weight: 'எடை (கி)',
+        category: 'வகை',
 
         // Sales History - விற்பனை வரலாறு
         salesHistoryTitle: 'விற்பனை வரலாறு',

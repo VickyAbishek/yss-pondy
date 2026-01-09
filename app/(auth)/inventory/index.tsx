@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useRouter } from 'expo-router';
 import React, { useCallback, useState } from 'react';
-import { FlatList, Image, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { FlatList, Image, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '../../../constants/Colors';
 import { useLanguage } from '../../../lib/language';
@@ -32,6 +32,7 @@ export default function InventoryScreen() {
     const router = useRouter();
     const { t } = useLanguage();
     const [searchQuery, setSearchQuery] = useState('');
+    const [selectedLanguage, setSelectedLanguage] = useState('All');
     const [books, setBooks] = useState<Book[]>([]);
     const [loading, setLoading] = useState(true);
 
@@ -57,12 +58,19 @@ export default function InventoryScreen() {
         }
     };
 
-    const filteredBooks = books.filter(book =>
-        book.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (book.product_id && book.product_id.toLowerCase().includes(searchQuery.toLowerCase())) ||
-        (book.serial && book.serial.includes(searchQuery)) ||
-        (book.isbn && book.isbn.includes(searchQuery))
-    );
+    const filteredBooks = books.filter(book => {
+        const matchesSearch = !searchQuery ||
+            (book.title?.toLowerCase().includes(searchQuery.toLowerCase())) ||
+            (book.product_id?.toLowerCase().includes(searchQuery.toLowerCase())) ||
+            (book.serial?.toLowerCase().includes(searchQuery.toLowerCase())) ||
+            (book.isbn?.toLowerCase().includes(searchQuery.toLowerCase()));
+
+        const matchesLanguage = selectedLanguage === 'All' || book.language === selectedLanguage;
+
+        return matchesSearch && matchesLanguage;
+    });
+
+    const uniqueLanguages = ['All', ...new Set(books.map(b => b.language).filter(Boolean))];
 
     const renderItem = ({ item }: { item: Book }) => (
         <View style={styles.bookCard}>
@@ -77,9 +85,11 @@ export default function InventoryScreen() {
                 <Text style={styles.bookTitle} numberOfLines={2}>{item.title}</Text>
                 <Text style={styles.bookAuthor} numberOfLines={1}>{item.product_id || item.serial || ''}</Text>
                 <View style={styles.metaRow}>
-                    <Text style={styles.bookMeta}>{item.language || item.category || ''}</Text>
+                    <Text style={styles.bookMeta}>
+                        {item.language}{item.category ? ` • ${item.category}` : ''}{item.weight ? ` • ${item.weight}g` : ''}
+                    </Text>
                 </View>
-                <Text style={styles.bookStock}>Stock: <Text style={{ fontWeight: 'bold' }}>{item.stock}</Text></Text>
+                <Text style={styles.bookStock}>{t('stock')}: <Text style={{ fontWeight: 'bold' }}>{item.stock}</Text></Text>
             </View>
             <View style={styles.bookPrice}>
                 <Text style={styles.currency}>₹</Text>
@@ -102,11 +112,33 @@ export default function InventoryScreen() {
                 <Ionicons name="search" size={20} color={Colors.yss.icon} style={styles.searchIcon} />
                 <TextInput
                     style={styles.searchInput}
-                    placeholder="Search books..."
+                    placeholder={t('searchBooks')}
                     placeholderTextColor={Colors.yss.icon}
                     value={searchQuery}
                     onChangeText={setSearchQuery}
                 />
+            </View>
+
+            <View style={styles.filterContainer}>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterScroll}>
+                    {uniqueLanguages.map(lang => (
+                        <TouchableOpacity
+                            key={lang}
+                            style={[
+                                styles.filterChip,
+                                selectedLanguage === lang && styles.activeFilterChip
+                            ]}
+                            onPress={() => setSelectedLanguage(lang)}
+                        >
+                            <Text style={[
+                                styles.filterChipText,
+                                selectedLanguage === lang && styles.activeFilterChipText
+                            ]}>
+                                {lang === 'All' ? t('all') || 'All' : lang}
+                            </Text>
+                        </TouchableOpacity>
+                    ))}
+                </ScrollView>
             </View>
 
             <FlatList
@@ -169,6 +201,33 @@ const styles = StyleSheet.create({
         flex: 1,
         fontSize: 16,
         color: Colors.yss.text,
+    },
+    filterContainer: {
+        marginBottom: 10,
+    },
+    filterScroll: {
+        paddingHorizontal: 20,
+        gap: 10,
+    },
+    filterChip: {
+        paddingHorizontal: 16,
+        paddingVertical: 8,
+        borderRadius: 20,
+        backgroundColor: Colors.yss.white,
+        borderWidth: 1,
+        borderColor: 'rgba(0,0,0,0.05)',
+    },
+    activeFilterChip: {
+        backgroundColor: Colors.yss.orange,
+        borderColor: Colors.yss.orange,
+    },
+    filterChipText: {
+        color: Colors.yss.text,
+        fontSize: 14,
+        fontWeight: '500',
+    },
+    activeFilterChipText: {
+        color: Colors.yss.white,
     },
     listContent: {
         paddingHorizontal: 20,
