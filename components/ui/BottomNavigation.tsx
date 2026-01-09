@@ -10,6 +10,9 @@ export function BottomNavigation() {
     const pathname = usePathname();
     const { t } = useLanguage();
 
+    // Hide FAB on sales page to avoid distraction during checkout
+    const isSalesPage = pathname.startsWith('/sales');
+
     const isInventory = pathname.startsWith('/inventory');
     const fabAction = isInventory ? '/inventory/add' : '/sales';
     const fabLabel = isInventory ? t('addBook') : t('newSale');
@@ -57,19 +60,21 @@ export function BottomNavigation() {
                 </TouchableOpacity>
             </View>
 
-            {/* Floating Action Button (FAB) */}
-            <TouchableOpacity
-                style={styles.fabContainer}
-                onPress={() => router.push(fabAction as any)}
-                activeOpacity={0.8}
-            >
-                <View style={styles.fab}>
-                    <Ionicons name="add" size={40} color={Colors.yss.white} />
-                </View>
-                <View style={styles.labelContainer}>
-                    <Text style={styles.fabLabel}>{fabLabel}</Text>
-                </View>
-            </TouchableOpacity>
+            {/* Floating Action Button (FAB) - Hidden on sales page */}
+            {!isSalesPage && (
+                <TouchableOpacity
+                    style={styles.fabContainer}
+                    onPress={() => router.push(fabAction as any)}
+                    activeOpacity={0.8}
+                >
+                    <View style={styles.fab}>
+                        <Ionicons name="add" size={40} color={Colors.yss.white} />
+                    </View>
+                    <View style={styles.labelContainer}>
+                        <Text style={styles.fabLabel}>{fabLabel}</Text>
+                    </View>
+                </TouchableOpacity>
+            )}
         </View>
     );
 }
