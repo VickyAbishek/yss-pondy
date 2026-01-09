@@ -14,7 +14,7 @@ export default function Dashboard() {
     const router = useRouter();
 
     // Stats from database
-    const [booksCount, setBooksCount] = useState<number>(0);
+    const [donationAmount, setDonationAmount] = useState<number>(0);
     const [todaySalesCount, setTodaySalesCount] = useState<number>(0);
 
     // Profile dropdown state
@@ -34,26 +34,28 @@ export default function Dashboard() {
     // Fetch stats on mount
     useEffect(() => {
         const fetchStats = async () => {
-            // Get total books count (sum of all stock)
-            const { data: booksData, error: booksError } = await supabase
-                .from('books')
-                .select('stock');
-
-            if (booksData && !booksError) {
-                const totalStock = booksData.reduce((sum, book) => sum + (book.stock || 0), 0);
-                setBooksCount(totalStock);
-            }
-
-            // Get today's sales count
             const today = new Date();
             today.setHours(0, 0, 0, 0);
+            const todayStr = today.toISOString();
 
-            const { count, error: salesError } = await supabase
+            // 1. Get today's total revenue (labeled as Donation)
+            const { data: salesData, error: salesError } = await supabase
+                .from('sales')
+                .select('total_amount')
+                .gte('created_at', todayStr);
+
+            if (salesData && !salesError) {
+                const total = salesData.reduce((sum, sale) => sum + (parseFloat(sale.total_amount as any) || 0), 0);
+                setDonationAmount(total);
+            }
+
+            // 2. Get today's sales count
+            const { count, error: countError } = await supabase
                 .from('sales')
                 .select('*', { count: 'exact', head: true })
-                .gte('created_at', today.toISOString());
+                .gte('created_at', todayStr);
 
-            if (count !== null && !salesError) {
+            if (count !== null && !countError) {
                 setTodaySalesCount(count);
             }
         };
@@ -62,7 +64,7 @@ export default function Dashboard() {
     }, []);
 
     const stats = [
-        { label: t('totalBooks'), value: booksCount.toLocaleString(), icon: 'book' },
+        { label: t('todayDonation'), value: `₹${donationAmount.toLocaleString()}`, icon: 'heart' },
         { label: t('todaySales'), value: todaySalesCount.toString(), icon: 'basket' },
     ];
 
