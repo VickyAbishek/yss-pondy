@@ -92,6 +92,9 @@ export default function SalesScreen() {
     const [customItemName, setCustomItemName] = useState('');
     const [customItemPrice, setCustomItemPrice] = useState('');
 
+    // Add Item Modal State (unified modal for scan/search/custom)
+    const [addItemModalVisible, setAddItemModalVisible] = useState(false);
+
     // Web Scanner Ref
     const scannerRef = useRef<any>(null);
     const lastScannedCode = useRef<string | null>(null);
@@ -755,8 +758,12 @@ export default function SalesScreen() {
                     <Ionicons name="arrow-back" size={24} color={Colors.yss.text} />
                 </TouchableOpacity>
                 <Text style={styles.headerTitle}>New Sale</Text>
-                <TouchableOpacity onPress={() => setCustomItemVisible(true)}>
-                    <Ionicons name="add-circle-outline" size={28} color={Colors.yss.orange} />
+                <TouchableOpacity onPress={() => {
+                    if (cart.length > 0 && window.confirm('Clear all items from cart?')) {
+                        setCart([]);
+                    }
+                }}>
+                    <Text style={[styles.clearText, cart.length === 0 && { opacity: 0.3 }]}>Clear</Text>
                 </TouchableOpacity>
             </View>
 
@@ -771,258 +778,172 @@ export default function SalesScreen() {
                         <Text style={styles.emptySubText}>Scan books to add them here</Text>
                     </View>
                 }
-                renderItem={({ item }) => (
-                    <View style={styles.cartItem}>
-                        <View style={{ flex: 1 }}>
-                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                                <Text style={styles.itemTitle}>{item.title}</Text>
+                renderItem={({ item }) => {
+                    // Calculate final price after discount
+                    const discountAmount = getItemDiscount(item);
+                    const finalPrice = (item.price * item.quantity) - discountAmount;
+
+                    return (
+                        <View style={styles.cartItemNew}>
+                            {/* Left side: Title and offer */}
+                            <View style={styles.cartItemLeft}>
+                                <Text style={styles.itemTitleNew} numberOfLines={2}>{item.title}</Text>
+
+                                {/* Offer badge with Remove link */}
+                                {item.appliedOffer && !item.offerRemoved && (
+                                    <View style={styles.offerRow}>
+                                        <View style={styles.offerBadgeNew}>
+                                            <Text style={styles.offerBadgeTextNew}>
+                                                🎉 {item.appliedOffer.name} {item.appliedOffer.discount_percentage}%
+                                            </Text>
+                                        </View>
+                                        <TouchableOpacity onPress={() => removeOfferFromItem(item.book_id)}>
+                                            <Text style={styles.removeOfferText}>Remove</Text>
+                                        </TouchableOpacity>
+                                    </View>
+                                )}
+
+                                {/* Restore offer if removed */}
+                                {item.offerRemoved && !item.isCustomItem && (
+                                    <TouchableOpacity
+                                        style={styles.restoreOfferRow}
+                                        onPress={() => restoreOfferToItem(item.book_id)}
+                                    >
+                                        <Text style={styles.restoreOfferTextNew}>+ Add Offer</Text>
+                                    </TouchableOpacity>
+                                )}
+
                                 {item.isCustomItem && (
-                                    <View style={styles.customBadge}>
-                                        <Text style={styles.customBadgeText}>Custom</Text>
+                                    <View style={styles.customBadgeNew}>
+                                        <Text style={styles.customBadgeTextNew}>Custom Item</Text>
                                     </View>
                                 )}
                             </View>
-                            <Text style={styles.itemSubtitle}>₹{item.price} each</Text>
 
-                            {/* Offer info */}
-                            {item.appliedOffer && !item.offerRemoved && (
-                                <View style={styles.offerBadge}>
-                                    <Text style={styles.offerBadgeText}>
-                                        🎉 {item.appliedOffer.name} ({item.appliedOffer.discount_percentage}% off)
-                                    </Text>
-                                    <TouchableOpacity onPress={() => removeOfferFromItem(item.book_id)}>
-                                        <Ionicons name="close-circle" size={18} color="#e53935" />
+                            {/* Right side: Qty controls and price */}
+                            <View style={styles.cartItemRight}>
+                                {/* Quantity controls */}
+                                <View style={styles.qtyContainerNew}>
+                                    <TouchableOpacity
+                                        onPress={() => updateQuantity(item.book_id, -1)}
+                                        style={styles.qtyButtonNew}
+                                    >
+                                        <Ionicons name="remove" size={20} color="white" />
+                                    </TouchableOpacity>
+                                    <Text style={styles.qtyTextNew}>{item.quantity}</Text>
+                                    <TouchableOpacity
+                                        onPress={() => updateQuantity(item.book_id, 1)}
+                                        style={styles.qtyButtonNew}
+                                    >
+                                        <Ionicons name="add" size={20} color="white" />
                                     </TouchableOpacity>
                                 </View>
-                            )}
 
-                            {/* Restore offer button if removed */}
-                            {item.offerRemoved && !item.isCustomItem && (
-                                <TouchableOpacity
-                                    style={styles.restoreOfferButton}
-                                    onPress={() => restoreOfferToItem(item.book_id)}
-                                >
-                                    <Ionicons name="refresh" size={14} color="#2e7d32" />
-                                    <Text style={styles.restoreOfferText}>Restore Offer</Text>
-                                </TouchableOpacity>
-                            )}
+                                {/* Final price (after discount) */}
+                                <Text style={styles.finalPriceNew}>₹{finalPrice.toFixed(0)}</Text>
+                            </View>
                         </View>
-
-                        <View style={styles.qtyContainer}>
-                            <TouchableOpacity onPress={() => updateQuantity(item.book_id, -1)} style={styles.qtyButton}>
-                                <Ionicons name="remove" size={16} color={Colors.yss.text} />
-                            </TouchableOpacity>
-                            <Text style={styles.qtyText}>{item.quantity}</Text>
-                            <TouchableOpacity onPress={() => updateQuantity(item.book_id, 1)} style={styles.qtyButton}>
-                                <Ionicons name="add" size={16} color={Colors.yss.text} />
-                            </TouchableOpacity>
-                        </View>
-
-                        <View style={{ alignItems: 'flex-end' }}>
-                            <Text style={styles.itemTotal}>₹{(item.price * item.quantity).toFixed(2)}</Text>
-                            {getItemDiscount(item) > 0 && (
-                                <Text style={styles.itemDiscountText}>-₹{getItemDiscount(item).toFixed(2)}</Text>
-                            )}
-                        </View>
-
-                        <TouchableOpacity onPress={() => {
-                            setCart(prev => prev.filter(i => i.book_id !== item.book_id));
-                        }} style={{ marginLeft: 15 }}>
-                            <Ionicons name="trash-outline" size={20} color={Colors.yss.orange} />
-                        </TouchableOpacity>
-                    </View>
-                )}
+                    );
+                }}
             />
 
-            <View style={styles.footer}>
-                {/* Payment Method Toggle */}
-                <View style={styles.paymentMethodRow}>
-                    <Text style={styles.paymentMethodLabel}>Payment:</Text>
-                    <View style={styles.paymentToggle}>
-                        <TouchableOpacity
-                            style={[styles.paymentOption, paymentMethod === 'cash' && styles.paymentOptionActive]}
-                            onPress={() => setPaymentMethod('cash')}
-                        >
-                            <Ionicons name="cash-outline" size={16} color={paymentMethod === 'cash' ? 'white' : Colors.yss.text} />
-                            <Text style={[styles.paymentOptionText, paymentMethod === 'cash' && styles.paymentOptionTextActive]}>Cash</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                            style={[styles.paymentOption, paymentMethod === 'gpay' && styles.paymentOptionActive]}
-                            onPress={() => setPaymentMethod('gpay')}
-                        >
-                            <Ionicons name="phone-portrait-outline" size={16} color={paymentMethod === 'gpay' ? 'white' : Colors.yss.text} />
-                            <Text style={[styles.paymentOptionText, paymentMethod === 'gpay' && styles.paymentOptionTextActive]}>GPay</Text>
-                        </TouchableOpacity>
+            <View style={styles.footerNew}>
+                {/* Savings and Total Row */}
+                <View style={styles.savingsRow}>
+                    {getTotalOfferDiscount() > 0 && (
+                        <Text style={styles.savingsText}>🎉 You save ₹{getTotalOfferDiscount().toFixed(0)}</Text>
+                    )}
+                    <View style={styles.totalDisplay}>
+                        <Text style={styles.totalAmount}>₹{getTotal().toFixed(0)}</Text>
                     </View>
                 </View>
 
-                {/* Collapsible Notes & Discount Row */}
-                <View style={styles.optionsRow}>
-                    <TouchableOpacity style={styles.optionButton} onPress={() => setShowNotes(!showNotes)}>
-                        <Ionicons name="create-outline" size={16} color={Colors.yss.text} />
-                        <Text style={styles.optionButtonText}>Notes</Text>
-                    </TouchableOpacity>
-                    <View style={styles.discountInputRow}>
-                        <Text style={styles.discountInputLabel}>Discount ₹</Text>
-                        <TextInput
-                            style={styles.discountInputSmall}
-                            placeholder="0"
-                            value={customDiscount}
-                            onChangeText={setCustomDiscount}
-                            keyboardType="numeric"
-                        />
-                    </View>
-                </View>
-
-                {/* Notes Input - Only shown when expanded */}
-                {showNotes && (
-                    <TextInput
-                        style={styles.notesInput}
-                        placeholder="Add notes for this sale..."
-                        value={saleNotes}
-                        onChangeText={setSaleNotes}
-                        multiline
-                        numberOfLines={2}
-                    />
-                )}
-
-                {/* Totals Section - Compact */}
-                <View style={styles.totalsCompact}>
-                    <View style={styles.totalsLeft}>
-                        {getTotalOfferDiscount() > 0 && (
-                            <Text style={styles.discountTextSmall}>🎉 -₹{getTotalOfferDiscount().toFixed(0)}</Text>
-                        )}
-                        {getCustomDiscountAmount() > 0 && (
-                            <Text style={styles.discountTextSmall}>✨ -₹{getCustomDiscountAmount().toFixed(0)}</Text>
-                        )}
-                    </View>
-                    <View style={styles.totalsRight}>
-                        <Text style={styles.totalLabelCompact}>Total</Text>
-                        <Text style={styles.totalValueCompact}>₹{getTotal().toFixed(2)}</Text>
-                    </View>
-                </View>
-
-                {/* Action Buttons */}
-                <View style={styles.actionRow}>
-                    <TouchableOpacity style={styles.scanButtonCompact} onPress={async () => {
-                        const hasPermission = await checkPermission();
-                        if (hasPermission) {
-                            setScanning(true);
-                        }
-                    }}>
-                        <Ionicons name="scan" size={20} color="white" />
-                    </TouchableOpacity>
-
+                {/* Action Buttons - Simple 2 buttons */}
+                <View style={styles.actionRowNew}>
                     <TouchableOpacity
-                        style={styles.searchButtonCompact}
-                        onPress={() => setSearchVisible(true)}
+                        style={styles.addItemButton}
+                        onPress={() => setAddItemModalVisible(true)}
                     >
-                        <Ionicons name="search" size={20} color="white" />
+                        <Ionicons name="add" size={22} color={Colors.yss.orange} />
+                        <Text style={styles.addItemButtonText}>Add Item</Text>
                     </TouchableOpacity>
 
                     <TouchableOpacity
-                        style={[styles.checkoutButtonCompact, cart.length === 0 && styles.disabledButton]}
+                        style={[styles.payButton, cart.length === 0 && styles.disabledButton]}
                         onPress={handleCheckout}
                         disabled={cart.length === 0}
                     >
-                        <Text style={styles.checkoutText}>Checkout</Text>
-                        <Ionicons name="arrow-forward" size={18} color="white" />
+                        <Ionicons name="checkmark" size={22} color="white" />
+                        <Text style={styles.payButtonText}>Pay ₹{getTotal().toFixed(0)}</Text>
                     </TouchableOpacity>
                 </View>
             </View>
 
-            {/* Checkout Modal */}
+            {/* Add Item Modal */}
+            <Modal visible={addItemModalVisible} animationType="slide" transparent>
+                <View style={styles.modalOverlay}>
+                    <View style={styles.addItemModalContent}>
+                        <View style={styles.addItemModalHeader}>
+                            <Text style={styles.addItemModalTitle}>Add Item</Text>
+                            <TouchableOpacity onPress={() => setAddItemModalVisible(false)}>
+                                <Ionicons name="close" size={28} color={Colors.yss.text} />
+                            </TouchableOpacity>
+                        </View>
+
+                        <View style={styles.addItemOptions}>
+                            <TouchableOpacity
+                                style={styles.addItemOption}
+                                onPress={async () => {
+                                    setAddItemModalVisible(false);
+                                    const hasPermission = await checkPermission();
+                                    if (hasPermission) {
+                                        setScanning(true);
+                                    }
+                                }}
+                            >
+                                <View style={styles.addItemIconBox}>
+                                    <Ionicons name="scan-outline" size={32} color={Colors.yss.orange} />
+                                </View>
+                                <Text style={styles.addItemOptionText}>Scan Barcode</Text>
+                            </TouchableOpacity>
+
+                            <TouchableOpacity
+                                style={styles.addItemOption}
+                                onPress={() => {
+                                    setAddItemModalVisible(false);
+                                    setSearchVisible(true);
+                                }}
+                            >
+                                <View style={styles.addItemIconBox}>
+                                    <Ionicons name="search-outline" size={32} color={Colors.yss.orange} />
+                                </View>
+                                <Text style={styles.addItemOptionText}>Search</Text>
+                            </TouchableOpacity>
+
+                            <TouchableOpacity
+                                style={styles.addItemOption}
+                                onPress={() => {
+                                    setAddItemModalVisible(false);
+                                    setCustomItemVisible(true);
+                                }}
+                            >
+                                <View style={styles.addItemIconBox}>
+                                    <Ionicons name="create-outline" size={32} color={Colors.yss.orange} />
+                                </View>
+                                <Text style={styles.addItemOptionText}>Custom Item</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                </View>
+            </Modal>
+
+            {/* Checkout Modal - Redesigned */}
             <Modal visible={checkoutVisible} animationType="slide" transparent>
                 <View style={styles.modalOverlay}>
-                    <View style={styles.modalContent}>
-                        <Text style={styles.modalTitle}>Checkout Details</Text>
-
-                        <TextInput
-                            style={styles.input}
-                            placeholder="Phone Number (WhatsApp - optional)"
-                            value={customerPhone}
-                            onChangeText={setCustomerPhone}
-                            keyboardType="phone-pad"
-                        />
-
-                        <TouchableOpacity
-                            style={styles.generateButton}
-                            onPress={shareBillToWhatsApp}
-                            disabled={generatingBill}
-                        >
-                            {generatingBill ? <ActivityIndicator color="white" /> : (
-                                <>
-                                    <Ionicons name="logo-whatsapp" size={20} color="white" style={{ marginRight: 8 }} />
-                                    <Text style={styles.generateText}>Share Bill via WhatsApp</Text>
-                                </>
-                            )}
-                        </TouchableOpacity>
-
-                        <TouchableOpacity
-                            style={styles.completeSaleButton}
-                            onPress={async () => {
-                                setGeneratingBill(true);
-                                const invoiceNum = await saveSaleToDatabase();
-                                setGeneratingBill(false);
-
-                                if (invoiceNum) {
-                                    setCurrentInvoiceNumber(invoiceNum);
-                                    setSaleCompleted(true);
-                                    window.alert(`Sale completed! Invoice #${invoiceNum}`);
-                                }
-                            }}
-                            disabled={generatingBill || saleCompleted}
-                        >
-                            {generatingBill ? <ActivityIndicator color="white" /> : (
-                                <>
-                                    <Ionicons name="checkmark-circle" size={20} color="white" style={{ marginRight: 8 }} />
-                                    <Text style={styles.generateText}>
-                                        {saleCompleted && currentInvoiceNumber ? `Invoice #${currentInvoiceNumber}` : 'Complete Sale'}
-                                    </Text>
-                                </>
-                            )}
-                        </TouchableOpacity>
-
-                        <TouchableOpacity
-                            style={styles.printButton}
-                            onPress={async () => {
-                                // If sale not completed yet, complete it first
-                                if (!saleCompleted) {
-                                    setPrinting(true);
-                                    const invoiceNum = await saveSaleToDatabase();
-                                    if (invoiceNum) {
-                                        setCurrentInvoiceNumber(invoiceNum);
-                                        setSaleCompleted(true);
-                                    } else {
-                                        setPrinting(false);
-                                        return; // Don't print if save failed
-                                    }
-                                }
-
-                                await printReceipt();
-                                setPrinting(false);
-                                setCheckoutVisible(false);
-                                setCart([]);
-                                await clearCartStorage();
-                                setCustomerPhone('');
-                                setSaleNotes('');
-                                setCustomDiscount('');
-                                setSaleCompleted(false);
-                                setCurrentInvoiceNumber(null);
-                            }}
-                            disabled={printing}
-                        >
-                            {printing ? <ActivityIndicator color="white" /> : (
-                                <>
-                                    <Ionicons name="print" size={20} color="white" style={{ marginRight: 8 }} />
-                                    <Text style={styles.generateText}>Print Receipt</Text>
-                                </>
-                            )}
-                        </TouchableOpacity>
-
-                        <TouchableOpacity
-                            style={styles.cancelButton}
-                            onPress={() => {
+                    <View style={styles.checkoutModalContent}>
+                        <View style={styles.checkoutModalHeader}>
+                            <Text style={styles.checkoutModalTitle}>Complete Payment</Text>
+                            <TouchableOpacity onPress={() => {
                                 setCheckoutVisible(false);
                                 if (saleCompleted) {
                                     setCart([]);
@@ -1033,10 +954,150 @@ export default function SalesScreen() {
                                     setSaleCompleted(false);
                                     setCurrentInvoiceNumber(null);
                                 }
-                            }}
+                            }}>
+                                <Ionicons name="close" size={28} color={Colors.yss.text} />
+                            </TouchableOpacity>
+                        </View>
+
+                        {/* Payment Method Toggle */}
+                        <View style={styles.paymentSection}>
+                            <Text style={styles.paymentSectionLabel}>Payment Method</Text>
+                            <View style={styles.paymentToggleNew}>
+                                <TouchableOpacity
+                                    style={[styles.paymentOptionNew, paymentMethod === 'cash' && styles.paymentOptionNewActive]}
+                                    onPress={() => setPaymentMethod('cash')}
+                                >
+                                    <Ionicons name="cash-outline" size={20} color={paymentMethod === 'cash' ? 'white' : Colors.yss.text} />
+                                    <Text style={[styles.paymentOptionNewText, paymentMethod === 'cash' && styles.paymentOptionNewTextActive]}>Cash</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                    style={[styles.paymentOptionNew, paymentMethod === 'gpay' && styles.paymentOptionNewActive]}
+                                    onPress={() => setPaymentMethod('gpay')}
+                                >
+                                    <Ionicons name="phone-portrait-outline" size={20} color={paymentMethod === 'gpay' ? 'white' : Colors.yss.text} />
+                                    <Text style={[styles.paymentOptionNewText, paymentMethod === 'gpay' && styles.paymentOptionNewTextActive]}>GPay</Text>
+                                </TouchableOpacity>
+                            </View>
+                        </View>
+
+                        {/* Notes - Expandable */}
+                        <TouchableOpacity
+                            style={styles.notesToggle}
+                            onPress={() => setShowNotes(!showNotes)}
                         >
-                            <Text style={styles.cancelText}>{saleCompleted ? 'Close' : 'Cancel'}</Text>
+                            <Text style={styles.notesToggleText}>+ Add notes (optional)</Text>
+                            <Ionicons name={showNotes ? "chevron-up" : "chevron-down"} size={20} color="#666" />
                         </TouchableOpacity>
+
+                        {showNotes && (
+                            <TextInput
+                                style={styles.notesInputNew}
+                                placeholder="Notes for this sale..."
+                                value={saleNotes}
+                                onChangeText={setSaleNotes}
+                                multiline
+                                numberOfLines={2}
+                            />
+                        )}
+
+                        {/* Order Summary */}
+                        <View style={styles.orderSummary}>
+                            <Text style={styles.orderSummaryTitle}>Order Summary</Text>
+                            <View style={styles.summaryRow}>
+                                <Text style={styles.summaryLabel}>Subtotal</Text>
+                                <Text style={styles.summaryValue}>₹{getSubtotal().toFixed(0)}</Text>
+                            </View>
+                            {getTotalOfferDiscount() > 0 && (
+                                <View style={styles.summaryRow}>
+                                    <Text style={styles.summaryLabelGreen}>🎉 You save</Text>
+                                    <Text style={styles.summaryValueGreen}>-₹{getTotalOfferDiscount().toFixed(0)}</Text>
+                                </View>
+                            )}
+                            <View style={styles.summaryDivider} />
+                            <View style={styles.summaryRow}>
+                                <Text style={styles.summaryTotalLabel}>Total</Text>
+                                <Text style={styles.summaryTotalValue}>₹{getTotal().toFixed(0)}</Text>
+                            </View>
+                        </View>
+
+                        {/* Action Buttons */}
+                        <View style={styles.checkoutActions}>
+                            {/* WhatsApp Icon Button */}
+                            <TouchableOpacity
+                                style={styles.whatsappIconButton}
+                                onPress={shareBillToWhatsApp}
+                                disabled={generatingBill}
+                            >
+                                {generatingBill ? <ActivityIndicator color="white" size="small" /> : (
+                                    <Ionicons name="logo-whatsapp" size={24} color="white" />
+                                )}
+                            </TouchableOpacity>
+
+                            {/* Print Icon Button */}
+                            <TouchableOpacity
+                                style={styles.printIconButton}
+                                onPress={async () => {
+                                    if (!saleCompleted) {
+                                        setPrinting(true);
+                                        const invoiceNum = await saveSaleToDatabase();
+                                        if (invoiceNum) {
+                                            setCurrentInvoiceNumber(invoiceNum);
+                                            setSaleCompleted(true);
+                                        } else {
+                                            setPrinting(false);
+                                            return;
+                                        }
+                                    }
+                                    await printReceipt();
+                                    setPrinting(false);
+                                    setCheckoutVisible(false);
+                                    setCart([]);
+                                    await clearCartStorage();
+                                    setCustomerPhone('');
+                                    setSaleNotes('');
+                                    setCustomDiscount('');
+                                    setSaleCompleted(false);
+                                    setCurrentInvoiceNumber(null);
+                                }}
+                                disabled={printing}
+                            >
+                                {printing ? <ActivityIndicator color="white" size="small" /> : (
+                                    <Ionicons name="print" size={24} color="white" />
+                                )}
+                            </TouchableOpacity>
+
+                            {/* Complete Sale Button */}
+                            <TouchableOpacity
+                                style={[styles.completeSaleButtonNew, (generatingBill || saleCompleted) && styles.disabledButton]}
+                                onPress={async () => {
+                                    setGeneratingBill(true);
+                                    const invoiceNum = await saveSaleToDatabase();
+                                    setGeneratingBill(false);
+                                    if (invoiceNum) {
+                                        setCurrentInvoiceNumber(invoiceNum);
+                                        setSaleCompleted(true);
+                                        window.alert(`Sale completed! Invoice #${invoiceNum}`);
+                                        // Auto close and reset
+                                        setCheckoutVisible(false);
+                                        setCart([]);
+                                        await clearCartStorage();
+                                        setCustomerPhone('');
+                                        setSaleNotes('');
+                                        setCustomDiscount('');
+                                        setSaleCompleted(false);
+                                        setCurrentInvoiceNumber(null);
+                                    }
+                                }}
+                                disabled={generatingBill || saleCompleted}
+                            >
+                                {generatingBill ? <ActivityIndicator color="white" /> : (
+                                    <>
+                                        <Ionicons name="checkmark" size={22} color="white" />
+                                        <Text style={styles.completeSaleButtonText}>Complete Sale</Text>
+                                    </>
+                                )}
+                            </TouchableOpacity>
+                        </View>
                     </View>
                 </View>
             </Modal>
@@ -1710,5 +1771,370 @@ const styles = StyleSheet.create({
         paddingVertical: 14,
         borderRadius: 12,
         gap: 6,
+    },
+    // New redesigned styles
+    clearText: {
+        fontSize: 16,
+        fontWeight: '600',
+        color: Colors.yss.orange,
+    },
+    cartItemNew: {
+        backgroundColor: 'white',
+        borderRadius: 16,
+        padding: 16,
+        marginBottom: 12,
+        flexDirection: 'row',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+        elevation: 3,
+    },
+    cartItemLeft: {
+        flex: 1,
+        marginRight: 12,
+    },
+    itemTitleNew: {
+        fontSize: 16,
+        fontWeight: 'bold',
+        color: Colors.yss.text,
+        marginBottom: 6,
+    },
+    cartItemRight: {
+        alignItems: 'flex-end',
+        justifyContent: 'space-between',
+    },
+    offerRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 10,
+        marginTop: 4,
+    },
+    offerBadgeNew: {
+        backgroundColor: '#e8f5e9',
+        paddingHorizontal: 10,
+        paddingVertical: 4,
+        borderRadius: 20,
+    },
+    offerBadgeTextNew: {
+        fontSize: 12,
+        color: '#2e7d32',
+        fontWeight: '600',
+    },
+    removeOfferText: {
+        fontSize: 12,
+        color: '#666',
+        textDecorationLine: 'underline',
+    },
+    restoreOfferRow: {
+        marginTop: 6,
+    },
+    restoreOfferTextNew: {
+        fontSize: 12,
+        color: '#2e7d32',
+        fontWeight: '500',
+    },
+    customBadgeNew: {
+        backgroundColor: '#e3f2fd',
+        paddingHorizontal: 8,
+        paddingVertical: 2,
+        borderRadius: 10,
+        marginTop: 4,
+    },
+    customBadgeTextNew: {
+        fontSize: 10,
+        color: '#1976d2',
+        fontWeight: '500',
+    },
+    qtyContainerNew: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 12,
+        marginBottom: 10,
+    },
+    qtyButtonNew: {
+        width: 36,
+        height: 36,
+        borderRadius: 18,
+        backgroundColor: Colors.yss.orange,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    qtyTextNew: {
+        fontSize: 18,
+        fontWeight: 'bold',
+        color: Colors.yss.text,
+        minWidth: 24,
+        textAlign: 'center',
+    },
+    finalPriceNew: {
+        fontSize: 20,
+        fontWeight: 'bold',
+        color: Colors.yss.text,
+    },
+    footerNew: {
+        padding: 16,
+        backgroundColor: '#fcf8f3',
+        borderTopWidth: 1,
+        borderTopColor: 'rgba(0,0,0,0.08)',
+    },
+    savingsRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 12,
+    },
+    savingsText: {
+        fontSize: 14,
+        color: '#2e7d32',
+        fontWeight: '600',
+    },
+    totalDisplay: {
+        alignItems: 'flex-end',
+    },
+    totalAmount: {
+        fontSize: 28,
+        fontWeight: 'bold',
+        color: Colors.yss.orange,
+    },
+    actionRowNew: {
+        flexDirection: 'row',
+        gap: 12,
+    },
+    addItemButton: {
+        flex: 1,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingVertical: 16,
+        backgroundColor: 'white',
+        borderRadius: 12,
+        borderWidth: 2,
+        borderColor: Colors.yss.orange,
+        gap: 8,
+    },
+    addItemButtonText: {
+        fontSize: 16,
+        fontWeight: '600',
+        color: Colors.yss.orange,
+    },
+    payButton: {
+        flex: 1,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingVertical: 16,
+        backgroundColor: Colors.yss.orange,
+        borderRadius: 12,
+        gap: 8,
+    },
+    payButtonText: {
+        fontSize: 16,
+        fontWeight: '600',
+        color: 'white',
+    },
+    addItemModalContent: {
+        backgroundColor: 'white',
+        borderTopLeftRadius: 24,
+        borderTopRightRadius: 24,
+        padding: 24,
+        paddingBottom: 40,
+    },
+    addItemModalHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 24,
+    },
+    addItemModalTitle: {
+        fontSize: 20,
+        fontWeight: 'bold',
+        color: Colors.yss.text,
+    },
+    addItemOptions: {
+        flexDirection: 'row',
+        justifyContent: 'space-around',
+    },
+    addItemOption: {
+        alignItems: 'center',
+        width: 90,
+    },
+    addItemIconBox: {
+        width: 70,
+        height: 70,
+        borderRadius: 16,
+        backgroundColor: '#fff5f0',
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginBottom: 10,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.1,
+        shadowRadius: 2,
+        elevation: 2,
+    },
+    addItemOptionText: {
+        fontSize: 12,
+        fontWeight: '500',
+        color: Colors.yss.text,
+        textAlign: 'center',
+    },
+    checkoutModalContent: {
+        backgroundColor: 'white',
+        borderTopLeftRadius: 24,
+        borderTopRightRadius: 24,
+        padding: 24,
+        paddingBottom: 40,
+    },
+    checkoutModalHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 20,
+    },
+    checkoutModalTitle: {
+        fontSize: 20,
+        fontWeight: 'bold',
+        color: Colors.yss.text,
+    },
+    paymentSection: {
+        marginBottom: 16,
+    },
+    paymentSectionLabel: {
+        fontSize: 14,
+        color: '#666',
+        marginBottom: 10,
+    },
+    paymentToggleNew: {
+        flexDirection: 'row',
+        gap: 12,
+    },
+    paymentOptionNew: {
+        flex: 1,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingVertical: 14,
+        borderRadius: 12,
+        backgroundColor: '#f5f5f5',
+        gap: 8,
+    },
+    paymentOptionNewActive: {
+        backgroundColor: Colors.yss.orange,
+    },
+    paymentOptionNewText: {
+        fontSize: 14,
+        fontWeight: '600',
+        color: Colors.yss.text,
+    },
+    paymentOptionNewTextActive: {
+        color: 'white',
+    },
+    notesToggle: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        paddingVertical: 12,
+        paddingHorizontal: 16,
+        backgroundColor: '#f9f9f9',
+        borderRadius: 10,
+        marginBottom: 12,
+    },
+    notesToggleText: {
+        fontSize: 14,
+        color: '#666',
+    },
+    notesInputNew: {
+        backgroundColor: '#f5f5f5',
+        borderRadius: 10,
+        padding: 12,
+        fontSize: 14,
+        marginBottom: 16,
+        minHeight: 60,
+        textAlignVertical: 'top',
+    },
+    orderSummary: {
+        backgroundColor: '#fafafa',
+        borderRadius: 12,
+        padding: 16,
+        marginBottom: 20,
+    },
+    orderSummaryTitle: {
+        fontSize: 14,
+        color: '#666',
+        marginBottom: 12,
+    },
+    summaryRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        marginBottom: 8,
+    },
+    summaryLabel: {
+        fontSize: 14,
+        color: Colors.yss.text,
+    },
+    summaryValue: {
+        fontSize: 14,
+        color: Colors.yss.text,
+    },
+    summaryLabelGreen: {
+        fontSize: 14,
+        color: '#2e7d32',
+    },
+    summaryValueGreen: {
+        fontSize: 14,
+        color: '#2e7d32',
+        fontWeight: '500',
+    },
+    summaryDivider: {
+        height: 1,
+        backgroundColor: '#e0e0e0',
+        marginVertical: 10,
+    },
+    summaryTotalLabel: {
+        fontSize: 16,
+        fontWeight: 'bold',
+        color: Colors.yss.text,
+    },
+    summaryTotalValue: {
+        fontSize: 22,
+        fontWeight: 'bold',
+        color: Colors.yss.orange,
+    },
+    checkoutActions: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 12,
+    },
+    whatsappIconButton: {
+        width: 54,
+        height: 54,
+        borderRadius: 27,
+        backgroundColor: '#25D366',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    printIconButton: {
+        width: 54,
+        height: 54,
+        borderRadius: 27,
+        backgroundColor: '#2196F3',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    completeSaleButtonNew: {
+        flex: 1,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingVertical: 16,
+        backgroundColor: Colors.yss.orange,
+        borderRadius: 12,
+        gap: 8,
+    },
+    completeSaleButtonText: {
+        fontSize: 16,
+        fontWeight: '600',
+        color: 'white',
     },
 });
