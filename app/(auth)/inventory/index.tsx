@@ -11,13 +11,17 @@ import { supabase } from '../../../lib/supabase';
 type Book = {
     id: string;
     title: string;
-    author: string;
+    author?: string;
     price: number;
     stock: number;
     isbn: string;
     language: string;
-    type: string;
+    type?: string;
     thumbnail_url?: string;
+    serial?: string;
+    product_id?: string;
+    weight?: number;
+    category?: string;
 };
 
 // Default YSS Placeholder (Using a generic spiritual book icon equivalent if URL fails, 
@@ -55,7 +59,8 @@ export default function InventoryScreen() {
 
     const filteredBooks = books.filter(book =>
         book.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        book.author.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (book.product_id && book.product_id.toLowerCase().includes(searchQuery.toLowerCase())) ||
+        (book.serial && book.serial.includes(searchQuery)) ||
         (book.isbn && book.isbn.includes(searchQuery))
     );
 
@@ -70,9 +75,9 @@ export default function InventoryScreen() {
             </View>
             <View style={styles.bookInfo}>
                 <Text style={styles.bookTitle} numberOfLines={2}>{item.title}</Text>
-                <Text style={styles.bookAuthor} numberOfLines={1}>{item.author}</Text>
+                <Text style={styles.bookAuthor} numberOfLines={1}>{item.product_id || item.serial || ''}</Text>
                 <View style={styles.metaRow}>
-                    <Text style={styles.bookMeta}>{item.language} • {item.type}</Text>
+                    <Text style={styles.bookMeta}>{item.language || item.category || ''}</Text>
                 </View>
                 <Text style={styles.bookStock}>Stock: <Text style={{ fontWeight: 'bold' }}>{item.stock}</Text></Text>
             </View>
